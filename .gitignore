@@ -1,0 +1,9 @@
+# Build / test artifacts
+/dist/
+/bin/
+*.test
+*.out
+coverage.txt
+
+# Local Go caches (kept out of the repo when building in-tree)
+/.gocache/

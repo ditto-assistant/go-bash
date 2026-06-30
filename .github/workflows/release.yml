@@ -1,0 +1,24 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # Only run once CI on main has a chance to pass; semantic-release decides
+    # whether a new version is warranted from the conventional-commit history.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Semantic release (auto-tag from conventional commits)
+        uses: go-semantic-release/action@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Allow 0.x tags until the API stabilizes.
+          allow-initial-development-versions: true
