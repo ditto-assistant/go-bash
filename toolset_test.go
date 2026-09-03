@@ -3,9 +3,62 @@ package gobash
 import (
 	"bytes"
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 )
+
+func TestEveryRegisteredCommand(t *testing.T) {
+	tests := []struct {
+		name   string
+		script string
+		want   string
+	}{
+		{name: "awk", script: `printf 'a 1\nb 2\n' | awk '$2 == 2 { print $1 }'`, want: "b\n"},
+		{name: "base64", script: `printf aGk= | base64 -d`, want: "hi"},
+		{name: "basename", script: `basename /a/report.json .json`, want: "report\n"},
+		{name: "cat", script: `printf x >/a; cat /a`, want: "x"},
+		{name: "cp", script: `printf x >/a; cp /a /b; cat /b`, want: "x"},
+		{name: "cut", script: `printf 'a:b\n' | cut -d: -f2`, want: "b\n"},
+		{name: "dirname", script: `dirname /a/report.json`, want: "/a\n"},
+		{name: "egrep", script: `printf 'a1\nb\n' | egrep '[0-9]'`, want: "a1\n"},
+		{name: "fgrep", script: `printf 'a.b\naxb\n' | fgrep 'a.b'`, want: "a.b\n"},
+		{name: "find", script: `mkdir /d; touch /d/a; find /d -type f`, want: "/d/a\n"},
+		{name: "grep", script: `printf 'yes\nno\n' | grep yes`, want: "yes\n"},
+		{name: "head", script: `printf 'a\nb\n' | head -n1`, want: "a\n"},
+		{name: "jq", script: `printf '{"a":1}' | jq -c '.a + 1'`, want: "2\n"},
+		{name: "ls", script: `mkdir /d; touch /d/a; ls /d`, want: "a\n"},
+		{name: "mkdir", script: `mkdir -p /d/sub; [ -d /d/sub ] && printf ok`, want: "ok"},
+		{name: "mv", script: `printf x >/a; mv /a /b; cat /b`, want: "x"},
+		{name: "rg", script: `printf 'needle\nno\n' | rg needle`, want: "needle\n"},
+		{name: "rm", script: `touch /a; rm /a; [ ! -e /a ] && printf gone`, want: "gone"},
+		{name: "sed", script: `printf 'old\n' | sed 's/old/new/'`, want: "new\n"},
+		{name: "sort", script: `printf 'b\na\n' | sort`, want: "a\nb\n"},
+		{name: "tail", script: `printf 'a\nb\n' | tail -n1`, want: "b\n"},
+		{name: "tee", script: `printf x | tee /a; cat /a`, want: "xx"},
+		{name: "touch", script: `touch /a; [ -f /a ] && printf ok`, want: "ok"},
+		{name: "tr", script: `printf abc | tr a-z A-Z`, want: "ABC"},
+		{name: "tree", script: `mkdir /d; touch /d/a; tree /d`, want: "/d\n└── a\n\n0 directories, 1 files\n"},
+		{name: "uniq", script: `printf 'a\na\n' | uniq`, want: "a\n"},
+		{name: "wc", script: `printf 'a b\n' | wc -w`, want: "2 \n"},
+	}
+	wantNames := make([]string, len(tests))
+	for i, tc := range tests {
+		wantNames[i] = tc.name
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := New().Run(context.Background(), tc.script)
+			if err != nil {
+				t.Fatalf("Run: %v", err)
+			}
+			if result.ExitCode != 0 || result.Stderr != "" || result.Stdout != tc.want {
+				t.Fatalf("result=%+v want_stdout=%q", result, tc.want)
+			}
+		})
+	}
+	if got := Commands(); !reflect.DeepEqual(got, wantNames) {
+		t.Fatalf("registered commands=%v, tested commands=%v", got, wantNames)
+	}
+}
 
 func TestDataProcessingToolset(t *testing.T) {
 	tests := []struct {

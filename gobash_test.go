@@ -118,3 +118,11 @@ func TestVirtualFilesystemQuota(t *testing.T) {
 		t.Fatalf("expected file quota failure, got %v", err)
 	}
 }
+
+func TestPathTestsUseVirtualFilesystem(t *testing.T) {
+	sh := New()
+	res := run(t, sh, `mkdir -p /d; touch /d/a; [ -f /d/a ] && [ -d /d ] && printf ok`)
+	if res.ExitCode != 0 || res.Stdout != "ok" {
+		t.Fatalf("virtual path tests failed: %+v", res)
+	}
+}

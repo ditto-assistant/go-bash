@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"sort"
 
 	"github.com/spf13/afero"
 )
@@ -66,6 +67,7 @@ func Commands() []string {
 	for n := range registry {
 		names = append(names, n)
 	}
+	sort.Strings(names)
 	return names
 }
 

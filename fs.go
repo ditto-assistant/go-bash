@@ -27,9 +27,12 @@ func (s *Shell) openHandler(ctx context.Context, p string, flag int, perm os.Fil
 }
 
 // statHandler backs path tests (e.g. "[ -f x ]") with the virtual filesystem.
-func (s *Shell) statHandler(ctx context.Context, name string, _ bool) (fs.FileInfo, error) {
-	hc := interp.HandlerCtx(ctx)
-	return s.fs.Stat(resolve(hc.Dir, name))
+func (s *Shell) statHandler(_ context.Context, name string, _ bool) (fs.FileInfo, error) {
+	// mvdan resolves test operands against the runner's current directory before
+	// invoking StatHandler, but does not consistently attach HandlerContext.
+	// Treating name as the already-resolved virtual path avoids a panic for
+	// ordinary expressions such as `[ -f /results/001.json ]`.
+	return s.fs.Stat(path.Clean(name))
 }
 
 // readDirHandler backs globbing with the virtual filesystem.
