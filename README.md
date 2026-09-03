@@ -38,11 +38,15 @@ redirects, globbing and path tests to the same in-memory filesystem.
 See [`AGENTS.md`](./AGENTS.md) for the contributor contract (how to add a
 command, the test/TDD model, and the boundary rules).
 
-## Status
+## Included command set
 
-Early scaffold. Reference commands implemented end-to-end and green:
-`cat`, `ls`, `mkdir`, `touch`, `rm`. The remaining coreutils are being built
-out test-first.
+The initial agent/data-analysis toolset is implemented end-to-end:
+`cat`, `ls`, `mkdir`, `touch`, `rm`, `cp`, `mv`, `tree`, `head`, `tail`, `wc`,
+`sort`, `uniq`, `cut`, `tr`, `grep`/`egrep`/`fgrep`, `rg`, `sed`, `awk`, `find`,
+`basename`, `dirname`, `jq`, `base64`, and `tee`.
+
+`Shell.Run` also bounds script bytes, captured output, and external command
+invocations. Callers should still provide a deadline through `context.Context`.
 
 ## License
 

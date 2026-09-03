@@ -2,6 +2,7 @@ package gobash
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -103,5 +104,25 @@ func TestIsolationNoHostLeak(t *testing.T) {
 	res, _ := New().Run(context.Background(), `cat /etc/passwd`)
 	if res.ExitCode == 0 {
 		t.Errorf("host file leaked into virtual FS: %q", res.Stdout)
+	}
+}
+
+func TestVirtualFilesystemQuota(t *testing.T) {
+	sh := New(WithFSQuota(8, 2))
+	res := run(t, sh, `printf 12345678 >/one; cp /one /two`)
+	if res.ExitCode == 0 || !strings.Contains(res.Stderr, "quota exceeded") {
+		t.Fatalf("expected byte quota failure, got %+v", res)
+	}
+	_, err := sh.Run(context.Background(), `printf x >/two; printf y >/three`)
+	if err == nil || !strings.Contains(err.Error(), "quota exceeded") {
+		t.Fatalf("expected file quota failure, got %v", err)
+	}
+}
+
+func TestPathTestsUseVirtualFilesystem(t *testing.T) {
+	sh := New()
+	res := run(t, sh, `mkdir -p /d; touch /d/a; [ -f /d/a ] && [ -d /d ] && printf ok`)
+	if res.ExitCode != 0 || res.Stdout != "ok" {
+		t.Fatalf("virtual path tests failed: %+v", res)
 	}
 }
