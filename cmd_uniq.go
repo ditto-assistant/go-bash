@@ -18,15 +18,16 @@ func cmdUniq(ctx context.Context, e *Env) int {
 	return forEachInput(ctx, e, operands, func(ctx context.Context, _ string, r io.Reader) error {
 		var previous, key string
 		count := 0
-		flush := func() {
+		flush := func() error {
 			if count == 0 || (flags['d'] && count == 1) || (flags['u'] && count != 1) {
-				return
+				return nil
 			}
 			if flags['c'] {
-				fmt.Fprintf(e.Stdout, "%7d %s\n", count, previous)
-			} else {
-				fmt.Fprintln(e.Stdout, previous)
+				_, err := fmt.Fprintf(e.Stdout, "%7d %s\n", count, previous)
+				return err
 			}
+			_, err := fmt.Fprintln(e.Stdout, previous)
+			return err
 		}
 		err := scanLines(ctx, r, func(line string, _ int) error {
 			lineKey := line
@@ -34,13 +35,17 @@ func cmdUniq(ctx context.Context, e *Env) int {
 				lineKey = strings.ToLower(line)
 			}
 			if count > 0 && lineKey != key {
-				flush()
+				if err := flush(); err != nil {
+					return err
+				}
 				count = 0
 			}
 			previous, key, count = line, lineKey, count+1
 			return nil
 		})
-		flush()
-		return err
+		if err != nil {
+			return err
+		}
+		return flush()
 	})
 }

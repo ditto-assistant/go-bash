@@ -38,7 +38,8 @@ func cmdSed(ctx context.Context, e *Env) int {
 			addressed := program.addressFrom == 0 || lineNo >= program.addressFrom && lineNo <= program.addressTo
 			if !addressed {
 				if !program.quiet {
-					fmt.Fprintln(e.Stdout, line)
+					_, err := fmt.Fprintln(e.Stdout, line)
+					return err
 				}
 				return nil
 			}
@@ -56,7 +57,8 @@ func cmdSed(ctx context.Context, e *Env) int {
 				}
 			}
 			if !program.quiet || program.printOnly {
-				fmt.Fprintln(e.Stdout, line)
+				_, err := fmt.Fprintln(e.Stdout, line)
+				return err
 			}
 			return nil
 		})

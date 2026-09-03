@@ -28,7 +28,7 @@ func cmdAwk(ctx context.Context, e *Env) int {
 		return 2
 	}
 	var input bytes.Buffer
-	code := forEachInput(ctx, e, operands, func(ctx context.Context, _ string, r io.Reader) error {
+	code := forEachInput(ctx, e, operands, func(_ context.Context, _ string, r io.Reader) error {
 		_, err := io.Copy(&input, r)
 		return err
 	})

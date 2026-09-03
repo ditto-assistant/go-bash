@@ -107,10 +107,14 @@ func cmdGrep(ctx context.Context, e *Env) int {
 			}
 			if opts.onlyMatching && !opts.invert {
 				for _, span := range spans {
-					fmt.Fprintln(e.Stdout, prefix+line[span[0]:span[1]])
+					if _, err := fmt.Fprintln(e.Stdout, prefix+line[span[0]:span[1]]); err != nil {
+						return err
+					}
 				}
 			} else {
-				fmt.Fprintln(e.Stdout, prefix+line)
+				if _, err := fmt.Fprintln(e.Stdout, prefix+line); err != nil {
+					return err
+				}
 			}
 			if opts.maxCount > 0 && matches >= opts.maxCount {
 				return errGrepStop
@@ -123,13 +127,20 @@ func cmdGrep(ctx context.Context, e *Env) int {
 			readErr = true
 		}
 		if opts.filesWithMatches && matches > 0 {
-			fmt.Fprintln(e.Stdout, name)
+			if _, err := fmt.Fprintln(e.Stdout, name); err != nil {
+				readErr = true
+			}
 		}
 		if opts.countOnly {
 			if showFilename {
-				fmt.Fprintf(e.Stdout, "%s:", name)
+				if _, err := fmt.Fprintf(e.Stdout, "%s:", name); err != nil {
+					readErr = true
+					continue
+				}
 			}
-			fmt.Fprintln(e.Stdout, matches)
+			if _, err := fmt.Fprintln(e.Stdout, matches); err != nil {
+				readErr = true
+			}
 		}
 		if opts.quiet && found {
 			return 0

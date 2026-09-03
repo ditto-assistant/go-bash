@@ -27,13 +27,13 @@ func (s *Shell) execMiddleware(next interp.ExecHandlerFunc) interp.ExecHandlerFu
 		if state, _ := ctx.Value(runStateKey{}).(*runState); state != nil &&
 			state.commands.Add(1) > int32(state.maxCommands) {
 			hc := interp.HandlerCtx(ctx)
-			fmt.Fprintf(hc.Stderr, "gobash: command limit (%d) exceeded\n", state.maxCommands)
+			_, _ = fmt.Fprintf(hc.Stderr, "gobash: command limit (%d) exceeded\n", state.maxCommands)
 			return interp.ExitStatus(124)
 		}
 		hc := interp.HandlerCtx(ctx)
 		fn, ok := lookup(args[0])
 		if !ok {
-			fmt.Fprintf(hc.Stderr, "%s: command not found\n", args[0])
+			_, _ = fmt.Fprintf(hc.Stderr, "%s: command not found\n", args[0])
 			return interp.ExitStatus(127)
 		}
 		env := &Env{

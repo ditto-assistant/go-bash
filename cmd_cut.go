@@ -25,7 +25,8 @@ func cmdCut(ctx context.Context, e *Env) int {
 			if mode == 'f' {
 				if !strings.Contains(line, delimiter) {
 					if !onlyDelimited {
-						fmt.Fprintln(e.Stdout, line)
+						_, err := fmt.Fprintln(e.Stdout, line)
+						return err
 					}
 					return nil
 				}
@@ -36,8 +37,8 @@ func cmdCut(ctx context.Context, e *Env) int {
 						out = append(out, parts[index-1])
 					}
 				}
-				fmt.Fprintln(e.Stdout, strings.Join(out, delimiter))
-				return nil
+				_, err := fmt.Fprintln(e.Stdout, strings.Join(out, delimiter))
+				return err
 			}
 			runes := []rune(line)
 			var out strings.Builder
@@ -46,8 +47,8 @@ func cmdCut(ctx context.Context, e *Env) int {
 					out.WriteRune(runes[index-1])
 				}
 			}
-			fmt.Fprintln(e.Stdout, out.String())
-			return nil
+			_, err := fmt.Fprintln(e.Stdout, out.String())
+			return err
 		})
 	})
 }

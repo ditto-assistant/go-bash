@@ -20,14 +20,19 @@ func cmdHead(ctx context.Context, e *Env) int {
 	return forEachInput(ctx, e, operands, func(ctx context.Context, name string, r io.Reader) error {
 		if multiple {
 			if !first {
-				fmt.Fprintln(e.Stdout)
+				if _, err := fmt.Fprintln(e.Stdout); err != nil {
+					return err
+				}
 			}
-			fmt.Fprintf(e.Stdout, "==> %s <==\n", name)
+			if _, err := fmt.Fprintf(e.Stdout, "==> %s <==\n", name); err != nil {
+				return err
+			}
 			first = false
 		}
 		return scanLines(ctx, r, func(line string, lineNo int) error {
 			if lineNo <= count {
-				fmt.Fprintln(e.Stdout, line)
+				_, err := fmt.Fprintln(e.Stdout, line)
+				return err
 			}
 			return nil
 		})

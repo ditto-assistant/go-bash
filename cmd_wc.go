@@ -34,7 +34,9 @@ func cmdWc(ctx context.Context, e *Env) int {
 			return err
 		}
 		count := countWC(data)
-		printWC(e, count, name, showLines, showWords, showBytes, showChars, len(operands) > 0)
+		if err := printWC(e, count, name, showLines, showWords, showBytes, showChars, len(operands) > 0); err != nil {
+			return err
+		}
 		total.lines += count.lines
 		total.words += count.words
 		total.bytes += count.bytes
@@ -43,7 +45,10 @@ func cmdWc(ctx context.Context, e *Env) int {
 		return nil
 	})
 	if inputs > 1 {
-		printWC(e, total, "total", showLines, showWords, showBytes, showChars, true)
+		if err := printWC(e, total, "total", showLines, showWords, showBytes, showChars, true); err != nil {
+			e.Errorf("%v", err)
+			return 1
+		}
 	}
 	return code
 }
@@ -66,21 +71,32 @@ func countWC(data []byte) wcCount {
 	return count
 }
 
-func printWC(e *Env, count wcCount, name string, lines, words, bytes, chars, includeName bool) {
+func printWC(e *Env, count wcCount, name string, lines, words, bytes, chars, includeName bool) error {
 	if lines {
-		fmt.Fprintf(e.Stdout, "%d ", count.lines)
+		if _, err := fmt.Fprintf(e.Stdout, "%d ", count.lines); err != nil {
+			return err
+		}
 	}
 	if words {
-		fmt.Fprintf(e.Stdout, "%d ", count.words)
+		if _, err := fmt.Fprintf(e.Stdout, "%d ", count.words); err != nil {
+			return err
+		}
 	}
 	if bytes {
-		fmt.Fprintf(e.Stdout, "%d ", count.bytes)
+		if _, err := fmt.Fprintf(e.Stdout, "%d ", count.bytes); err != nil {
+			return err
+		}
 	}
 	if chars {
-		fmt.Fprintf(e.Stdout, "%d ", count.chars)
+		if _, err := fmt.Fprintf(e.Stdout, "%d ", count.chars); err != nil {
+			return err
+		}
 	}
 	if includeName {
-		fmt.Fprint(e.Stdout, name)
+		if _, err := fmt.Fprint(e.Stdout, name); err != nil {
+			return err
+		}
 	}
-	fmt.Fprintln(e.Stdout)
+	_, err := fmt.Fprintln(e.Stdout)
+	return err
 }

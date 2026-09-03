@@ -30,7 +30,10 @@ func cmdLs(_ context.Context, e *Env) int {
 			continue
 		}
 		if !fi.IsDir() {
-			fmt.Fprintln(e.Stdout, p)
+			if _, err := fmt.Fprintln(e.Stdout, p); err != nil {
+				e.Errorf("%v", err)
+				code = 1
+			}
 			continue
 		}
 		infos, err := afero.ReadDir(e.FS, full)
@@ -48,7 +51,11 @@ func cmdLs(_ context.Context, e *Env) int {
 		}
 		sort.Strings(names)
 		for _, n := range names {
-			fmt.Fprintln(e.Stdout, n)
+			if _, err := fmt.Fprintln(e.Stdout, n); err != nil {
+				e.Errorf("%v", err)
+				code = 1
+				break
+			}
 		}
 	}
 	return code

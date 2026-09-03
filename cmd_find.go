@@ -65,8 +65,8 @@ func cmdFind(ctx context.Context, e *Env) int {
 		if rel != "" {
 			display = strings.TrimRight(opts.root, "/") + "/" + rel
 		}
-		fmt.Fprintln(e.Stdout, display)
-		return nil
+		_, err = fmt.Fprintln(e.Stdout, display)
+		return err
 	})
 	if err != nil {
 		e.Errorf("%v", err)

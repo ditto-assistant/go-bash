@@ -41,7 +41,10 @@ func cmdSort(ctx context.Context, e *Env) int {
 		if flags['u'] && i > 0 && line == last {
 			continue
 		}
-		fmt.Fprintln(e.Stdout, line)
+		if _, err := fmt.Fprintln(e.Stdout, line); err != nil {
+			e.Errorf("%v", err)
+			return 1
+		}
 		last = line
 	}
 	return 0

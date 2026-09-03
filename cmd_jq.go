@@ -1,7 +1,6 @@
 package gobash
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -51,8 +50,6 @@ func cmdJq(ctx context.Context, e *Env) int {
 	if slurp {
 		inputs = []any{inputs}
 	}
-	w := bufio.NewWriter(e.Stdout)
-	defer w.Flush()
 	for _, input := range inputs {
 		iter := parsed.RunWithContext(ctx, input)
 		for {
@@ -66,7 +63,10 @@ func cmdJq(ctx context.Context, e *Env) int {
 			}
 			if raw {
 				if s, isString := value.(string); isString {
-					fmt.Fprintln(w, s)
+					if _, err := fmt.Fprintln(e.Stdout, s); err != nil {
+						e.Errorf("%v", err)
+						return 5
+					}
 					continue
 				}
 			}
@@ -81,7 +81,10 @@ func cmdJq(ctx context.Context, e *Env) int {
 				e.Errorf("encode result: %v", err)
 				return 5
 			}
-			fmt.Fprintln(w, string(encoded))
+			if _, err := fmt.Fprintln(e.Stdout, string(encoded)); err != nil {
+				e.Errorf("%v", err)
+				return 5
+			}
 		}
 	}
 	return 0

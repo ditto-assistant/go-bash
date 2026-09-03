@@ -24,13 +24,20 @@ func cmdTree(ctx context.Context, e *Env) int {
 			code = 1
 			continue
 		}
-		fmt.Fprintln(e.Stdout, operand)
+		if _, err := fmt.Fprintln(e.Stdout, operand); err != nil {
+			e.Errorf("%s: %v", operand, err)
+			code = 1
+			continue
+		}
 		files, dirs := 0, 0
 		if err := treeWalk(ctx, e, root, "", flags['a'], &files, &dirs); err != nil {
 			e.Errorf("%s: %v", operand, err)
 			code = 1
 		}
-		fmt.Fprintf(e.Stdout, "\n%d directories, %d files\n", dirs, files)
+		if _, err := fmt.Fprintf(e.Stdout, "\n%d directories, %d files\n", dirs, files); err != nil {
+			e.Errorf("%s: %v", operand, err)
+			code = 1
+		}
 	}
 	return code
 }
@@ -55,7 +62,9 @@ func treeWalk(ctx context.Context, e *Env, dir, prefix string, all bool, files, 
 		if last {
 			branch, childPrefix = "└── ", prefix+"    "
 		}
-		fmt.Fprintln(e.Stdout, prefix+branch+entry.Name())
+		if _, err := fmt.Fprintln(e.Stdout, prefix+branch+entry.Name()); err != nil {
+			return err
+		}
 		if entry.IsDir() {
 			*dirs++
 			if err := treeWalk(ctx, e, path.Join(dir, entry.Name()), childPrefix, all, files, dirs); err != nil {

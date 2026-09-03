@@ -34,7 +34,9 @@ func cmdBase64(ctx context.Context, e *Env) int {
 		if err := encoder.Close(); err != nil {
 			return err
 		}
-		fmt.Fprintln(e.Stdout)
+		if _, err := fmt.Fprintln(e.Stdout); err != nil {
+			return err
+		}
 		return ctx.Err()
 	})
 }

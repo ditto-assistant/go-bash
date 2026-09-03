@@ -34,13 +34,19 @@ func cmdTail(ctx context.Context, e *Env) int {
 		}
 		if multiple {
 			if !first {
-				fmt.Fprintln(e.Stdout)
+				if _, err := fmt.Fprintln(e.Stdout); err != nil {
+					return err
+				}
 			}
-			fmt.Fprintf(e.Stdout, "==> %s <==\n", name)
+			if _, err := fmt.Fprintf(e.Stdout, "==> %s <==\n", name); err != nil {
+				return err
+			}
 			first = false
 		}
 		for _, line := range lines {
-			fmt.Fprintln(e.Stdout, line)
+			if _, err := fmt.Fprintln(e.Stdout, line); err != nil {
+				return err
+			}
 		}
 		return nil
 	})

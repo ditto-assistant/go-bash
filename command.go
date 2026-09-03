@@ -43,7 +43,7 @@ func (e *Env) Errorf(format string, a ...any) {
 	if len(e.Args) > 0 {
 		name = e.Args[0]
 	}
-	fmt.Fprintf(e.Stderr, name+": "+format+"\n", a...)
+	_, _ = fmt.Fprintf(e.Stderr, name+": "+format+"\n", a...)
 }
 
 // registry holds all builtins, populated by Register (typically from per-command
