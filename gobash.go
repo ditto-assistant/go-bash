@@ -24,6 +24,8 @@ type Shell struct {
 	maxOutput   int
 	maxScript   int
 	maxCommands int
+	maxFSBytes  int64
+	maxFSFiles  int
 }
 
 // Option configures a [Shell].
@@ -58,6 +60,19 @@ func WithLimits(maxOutput, maxScript, maxCommands int) Option {
 	}
 }
 
+// WithFSQuota bounds the aggregate bytes and regular-file count in the virtual
+// filesystem. Non-positive values retain the safe defaults.
+func WithFSQuota(maxBytes int64, maxFiles int) Option {
+	return func(s *Shell) {
+		if maxBytes > 0 {
+			s.maxFSBytes = maxBytes
+		}
+		if maxFiles > 0 {
+			s.maxFSFiles = maxFiles
+		}
+	}
+}
+
 // New creates a Shell. By default it uses a fresh in-memory filesystem rooted
 // at "/", with no host environment leakage.
 func New(opts ...Option) *Shell {
@@ -68,10 +83,13 @@ func New(opts ...Option) *Shell {
 		maxOutput:   64 << 10,
 		maxScript:   256 << 10,
 		maxCommands: 256,
+		maxFSBytes:  64 << 20,
+		maxFSFiles:  1024,
 	}
 	for _, o := range opts {
 		o(s)
 	}
+	s.fs = newQuotaFS(s.fs, s.maxFSBytes, s.maxFSFiles)
 	_ = s.fs.MkdirAll(s.cwd, 0o755)
 	return s
 }
