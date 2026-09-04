@@ -36,7 +36,7 @@ func cmdJq(ctx context.Context, e *Env) int {
 		inputs = append(inputs, nil)
 	} else if opts.rawInput && opts.slurp {
 		var raw strings.Builder
-		status := forEachInput(ctx, e, operands, func(ctx context.Context, _ string, r io.Reader) error {
+		status := forEachInput(ctx, e, operands, func(_ context.Context, _ string, r io.Reader) error {
 			_, err := io.Copy(&raw, r)
 			return err
 		})

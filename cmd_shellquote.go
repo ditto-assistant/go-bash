@@ -185,12 +185,12 @@ func renderBashPrintf(format string, args []string) (string, error) {
 			}
 			switch verb {
 			case 's':
-				out.WriteString(fmt.Sprintf(directive, value))
+				_, _ = fmt.Fprintf(&out, directive, value)
 			case 'q':
-				out.WriteString(fmt.Sprintf(directive[:len(directive)-1]+"s", bashQuoted(value)))
+				_, _ = fmt.Fprintf(&out, directive[:len(directive)-1]+"s", bashQuoted(value))
 			case 'b':
 				decoded, stop := decodePrintfBytes(value)
-				out.WriteString(fmt.Sprintf(directive[:len(directive)-1]+"s", decoded))
+				_, _ = fmt.Fprintf(&out, directive[:len(directive)-1]+"s", decoded)
 				if stop {
 					return out.String(), nil
 				}
