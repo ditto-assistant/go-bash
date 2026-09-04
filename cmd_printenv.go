@@ -9,7 +9,16 @@ import (
 func init() { Register("printenv", cmdPrintenv) }
 
 func cmdPrintenv(_ context.Context, e *Env) int {
-	if len(e.Args) == 1 {
+	separator := "\n"
+	args := e.Args[1:]
+	if len(args) > 0 && (args[0] == "-0" || args[0] == "--null") {
+		separator = "\x00"
+		args = args[1:]
+	}
+	if len(args) == 0 {
+		if separator == "\x00" {
+			return cmdEnv(context.Background(), &Env{Args: []string{"env", "-0"}, Stdout: e.Stdout, Stderr: e.Stderr, Environ: e.Environ})
+		}
 		return cmdEnv(context.Background(), &Env{Args: []string{"env"}, Stdout: e.Stdout, Stderr: e.Stderr, Environ: e.Environ})
 	}
 	values := make(map[string]string, len(e.Environ))
@@ -18,13 +27,13 @@ func cmdPrintenv(_ context.Context, e *Env) int {
 		values[name] = value
 	}
 	code := 0
-	for _, name := range e.Args[1:] {
+	for _, name := range args {
 		value, ok := values[name]
 		if !ok {
 			code = 1
 			continue
 		}
-		if _, err := fmt.Fprintln(e.Stdout, value); err != nil {
+		if _, err := fmt.Fprint(e.Stdout, value+separator); err != nil {
 			e.Errorf("%v", err)
 			return 1
 		}

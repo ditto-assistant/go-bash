@@ -12,6 +12,9 @@ func init() { Register("sort", cmdSort) }
 
 func cmdSort(ctx context.Context, e *Env) int {
 	flags, operands := splitArgs(e.Args[1:])
+	if !validateShortFlags(e, flags, "nru") {
+		return 2
+	}
 	var lines []string
 	code := forEachInput(ctx, e, operands, func(ctx context.Context, _ string, r io.Reader) error {
 		return scanLines(ctx, r, func(line string, _ int) error {

@@ -18,6 +18,9 @@ type wcCount struct {
 
 func cmdWc(ctx context.Context, e *Env) int {
 	flags, operands := splitArgs(e.Args[1:])
+	if !validateShortFlags(e, flags, "lwcm") {
+		return 2
+	}
 	showLines, showWords := flags['l'], flags['w']
 	showBytes, showChars := flags['c'], flags['m']
 	if !showLines && !showWords && !showBytes && !showChars {

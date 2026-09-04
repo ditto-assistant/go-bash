@@ -15,6 +15,6 @@
 //	                                   │
 //	                 ExecHandlers ─────┤ dispatch argv[0] to a registered
 //	                                   │   Go builtin (see Register)
-//	                 Open/Stat/ReadDir─┘ redirects, globs and tests hit the
-//	                                     in-memory afero filesystem
+//	          Open/Stat/ReadDir/Access─┘ redirects, cwd, globs and tests hit
+//	                                     the in-memory afero filesystem
 package gobash

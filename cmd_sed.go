@@ -12,7 +12,6 @@ import (
 func init() { Register("sed", cmdSed) }
 
 type sedProgram struct {
-	quiet       bool
 	addressFrom int
 	addressTo   int
 	pattern     *regexp.Regexp
@@ -23,40 +22,45 @@ type sedProgram struct {
 }
 
 func cmdSed(ctx context.Context, e *Env) int {
-	expression, quiet, operands, ok := parseSedArgs(e)
+	expressions, quiet, extended, operands, ok := parseSedArgs(e)
 	if !ok {
 		return 2
 	}
-	program, err := compileSed(expression)
-	if err != nil {
-		e.Errorf("%v", err)
-		return 1
+	programs := make([]sedProgram, 0, len(expressions))
+	for _, expression := range expressions {
+		program, err := compileSed(expression, extended)
+		if err != nil {
+			e.Errorf("%v", err)
+			return 1
+		}
+		programs = append(programs, program)
 	}
-	program.quiet = quiet
 	return forEachInput(ctx, e, operands, func(ctx context.Context, _ string, r io.Reader) error {
 		return scanLines(ctx, r, func(line string, lineNo int) error {
-			addressed := program.addressFrom == 0 || lineNo >= program.addressFrom && lineNo <= program.addressTo
-			if !addressed {
-				if !program.quiet {
-					_, err := fmt.Fprintln(e.Stdout, line)
-					return err
+			deleted := false
+			for _, program := range programs {
+				addressed := program.addressFrom == 0 || lineNo >= program.addressFrom && lineNo <= program.addressTo
+				if !addressed {
+					continue
 				}
-				return nil
-			}
-			if program.deleteOnly {
-				return nil
-			}
-			if program.pattern != nil {
-				if program.global {
-					line = program.pattern.ReplaceAllString(line, program.replacement)
-				} else {
-					location := program.pattern.FindStringIndex(line)
-					if location != nil {
+				if program.deleteOnly {
+					deleted = true
+					break
+				}
+				if program.pattern != nil {
+					if program.global {
+						line = program.pattern.ReplaceAllString(line, program.replacement)
+					} else if location := program.pattern.FindStringIndex(line); location != nil {
 						line = line[:location[0]] + program.pattern.ReplaceAllString(line[location[0]:location[1]], program.replacement) + line[location[1]:]
 					}
 				}
+				if program.printOnly {
+					if _, err := fmt.Fprintln(e.Stdout, line); err != nil {
+						return err
+					}
+				}
 			}
-			if !program.quiet || program.printOnly {
+			if !deleted && !quiet {
 				_, err := fmt.Fprintln(e.Stdout, line)
 				return err
 			}
@@ -65,35 +69,48 @@ func cmdSed(ctx context.Context, e *Env) int {
 	})
 }
 
-func parseSedArgs(e *Env) (expression string, quiet bool, operands []string, ok bool) {
+func parseSedArgs(e *Env) (expressions []string, quiet, extended bool, operands []string, ok bool) {
 	args := e.Args[1:]
+	endOfFlags := false
 	for i := 0; i < len(args); i++ {
+		if endOfFlags {
+			operands = append(operands, args[i])
+			continue
+		}
 		switch args[i] {
+		case "--":
+			endOfFlags = true
 		case "-n":
 			quiet = true
+		case "-E", "-r":
+			extended = true
 		case "-e":
-			if i+1 >= len(args) || expression != "" {
-				e.Errorf("-e requires one expression")
-				return "", false, nil, false
+			if i+1 >= len(args) {
+				e.Errorf("-e requires an expression")
+				return nil, false, false, nil, false
 			}
 			i++
-			expression = args[i]
+			expressions = append(expressions, args[i])
 		default:
-			if expression == "" {
-				expression = args[i]
+			if strings.HasPrefix(args[i], "-") && len(expressions) == 0 {
+				e.Errorf("unsupported option: %s", args[i])
+				return nil, false, false, nil, false
+			}
+			if len(expressions) == 0 {
+				expressions = append(expressions, args[i])
 			} else {
 				operands = append(operands, args[i])
 			}
 		}
 	}
-	if expression == "" {
+	if len(expressions) == 0 {
 		e.Errorf("missing script")
-		return "", false, nil, false
+		return nil, false, false, nil, false
 	}
-	return expression, quiet, operands, true
+	return expressions, quiet, extended, operands, true
 }
 
-func compileSed(expression string) (sedProgram, error) {
+func compileSed(expression string, extended bool) (sedProgram, error) {
 	program := sedProgram{}
 	command := expression
 	if comma := strings.Index(command, ","); comma > 0 {
@@ -134,15 +151,69 @@ func compileSed(expression string) (sedProgram, error) {
 	if len(parts) < 3 {
 		return program, fmt.Errorf("unterminated substitute command")
 	}
-	re, err := regexp.Compile(parts[0])
+	pattern := parts[0]
+	if !extended {
+		pattern = sedBREToGo(pattern)
+	}
+	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return program, err
 	}
 	program.pattern = re
-	program.replacement = parts[1]
+	program.replacement = sedReplacementToGo(parts[1])
 	program.global = strings.Contains(parts[2], "g")
 	program.printOnly = strings.Contains(parts[2], "p")
 	return program, nil
+}
+
+func sedBREToGo(pattern string) string {
+	var out strings.Builder
+	for i := 0; i < len(pattern); i++ {
+		if pattern[i] == '\\' && i+1 < len(pattern) {
+			i++
+			if strings.ContainsRune("(){}+?|", rune(pattern[i])) {
+				out.WriteByte(pattern[i])
+			} else {
+				out.WriteByte('\\')
+				out.WriteByte(pattern[i])
+			}
+			continue
+		}
+		if strings.ContainsRune("(){}+?|", rune(pattern[i])) {
+			out.WriteByte('\\')
+		}
+		out.WriteByte(pattern[i])
+	}
+	return out.String()
+}
+
+func sedReplacementToGo(replacement string) string {
+	var out strings.Builder
+	for i := 0; i < len(replacement); i++ {
+		switch replacement[i] {
+		case '\\':
+			if i+1 >= len(replacement) {
+				out.WriteString(`\\`)
+				continue
+			}
+			i++
+			next := replacement[i]
+			if next >= '0' && next <= '9' {
+				fmt.Fprintf(&out, "${%c}", next)
+			} else if next == '&' {
+				out.WriteByte('&')
+			} else {
+				out.WriteByte(next)
+			}
+		case '&':
+			out.WriteString("${0}")
+		case '$':
+			out.WriteString("$$")
+		default:
+			out.WriteByte(replacement[i])
+		}
+	}
+	return out.String()
 }
 
 func splitSed(value string, delimiter byte) []string {

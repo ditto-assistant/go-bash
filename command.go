@@ -38,11 +38,20 @@ type Env struct {
 	// external invocations count against the command limit. It is used by
 	// commands such as xargs.
 	RunCommand func(context.Context, []string) int
+	// RunCommandEnv is RunCommand with temporary KEY=value assignments applied
+	// only to that invocation, as required by env KEY=value command.
+	RunCommandEnv func(context.Context, []string, []string) int
 }
 
 // Resolve turns a possibly-relative path into a cleaned absolute path within
 // the virtual filesystem, relative to the current working directory.
 func (e *Env) Resolve(p string) string {
+	// An empty shell pathname is not an alias for the current directory.
+	// Returning an unrepresentable shell path keeps every command that uses
+	// Resolve fail-closed instead of letting path.Join collapse "" to e.Dir.
+	if p == "" {
+		return "/\x00"
+	}
 	if path.IsAbs(p) {
 		return path.Clean(p)
 	}
@@ -62,6 +71,7 @@ func (e *Env) Errorf(format string, a ...any) {
 // init functions). A central map with self-registering command files keeps each
 // command independent and merge-conflict free.
 var registry = map[string]CommandFunc{}
+var internalRegistry = map[string]CommandFunc{}
 
 // Register adds a builtin under name. It panics on duplicate registration so
 // collisions surface at startup rather than silently shadowing.
@@ -72,7 +82,25 @@ func Register(name string, fn CommandFunc) {
 	if _, dup := registry[name]; dup {
 		panic("gobash: duplicate command registration: " + name)
 	}
+	if _, dup := internalRegistry[name]; dup {
+		panic("gobash: duplicate command registration: " + name)
+	}
 	registry[name] = fn
+}
+
+// registerInternal adds a command needed by shell compatibility shims without
+// advertising it as part of the agent-facing external command inventory.
+func registerInternal(name string, fn CommandFunc) {
+	if !syntax.ValidName(name) {
+		panic("gobash: internal command name is not a safe shell identifier: " + name)
+	}
+	if _, dup := registry[name]; dup {
+		panic("gobash: duplicate command registration: " + name)
+	}
+	if _, dup := internalRegistry[name]; dup {
+		panic("gobash: duplicate command registration: " + name)
+	}
+	internalRegistry[name] = fn
 }
 
 // Commands returns the sorted names of all registered builtins.
@@ -87,5 +115,17 @@ func Commands() []string {
 
 func lookup(name string) (CommandFunc, bool) {
 	fn, ok := registry[name]
+	if !ok {
+		fn, ok = internalRegistry[name]
+	}
 	return fn, ok
+}
+
+func commandNamesIncludingInternal() []string {
+	names := Commands()
+	for name := range internalRegistry {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }

@@ -1,6 +1,9 @@
 package gobash
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // splitArgs separates short flag characters from positional operands using a
 // simplified getopt model good enough for the common coreutils: tokens that
@@ -25,4 +28,23 @@ func splitArgs(args []string) (flags map[rune]bool, operands []string) {
 		}
 	}
 	return flags, operands
+}
+
+// validateShortFlags rejects every flag the command does not explicitly
+// implement. Silently accepting flags is particularly dangerous for mutating
+// commands such as cp, mv, and rm because callers may rely on their safety
+// semantics.
+func validateShortFlags(e *Env, flags map[rune]bool, allowed string) bool {
+	var unsupported []rune
+	for flag := range flags {
+		if !strings.ContainsRune(allowed, flag) {
+			unsupported = append(unsupported, flag)
+		}
+	}
+	if len(unsupported) == 0 {
+		return true
+	}
+	sort.Slice(unsupported, func(i, j int) bool { return unsupported[i] < unsupported[j] })
+	e.Errorf("unsupported option -- %c", unsupported[0])
+	return false
 }

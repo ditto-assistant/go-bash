@@ -124,9 +124,9 @@ func TestVirtualFilesystemQuota(t *testing.T) {
 	if res.ExitCode == 0 || !strings.Contains(res.Stderr, "quota exceeded") {
 		t.Fatalf("expected byte quota failure, got %+v", res)
 	}
-	_, err := sh.Run(context.Background(), `printf x >/two; printf y >/three`)
-	if err == nil || !strings.Contains(err.Error(), "quota exceeded") {
-		t.Fatalf("expected file quota failure, got %v", err)
+	res, err := sh.Run(context.Background(), `printf x >/two; printf y >/three`)
+	if err != nil || res.ExitCode == 0 || !strings.Contains(res.Stderr, "quota exceeded") {
+		t.Fatalf("expected structured file quota failure, got result=%+v err=%v", res, err)
 	}
 }
 

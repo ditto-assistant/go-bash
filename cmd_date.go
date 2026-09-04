@@ -38,6 +38,8 @@ func cmdDate(_ context.Context, e *Env) int {
 			dateInput = strings.TrimPrefix(arg, "--date=")
 		case strings.HasPrefix(arg, "+"):
 			format = strings.TrimPrefix(arg, "+")
+		case arg == "-Iseconds" || arg == "--iso-8601=seconds":
+			format = "%Y-%m-%dT%H:%M:%S%:z"
 		case arg == "--help":
 			_, _ = fmt.Fprintln(e.Stdout, "usage: date [-u] [-d date] [+format]")
 			return 0
@@ -165,6 +167,13 @@ func formatDate(value time.Time, format string) string {
 		}
 		i++
 		directive := format[i]
+		if directive >= '1' && directive <= '9' && i+1 < len(format) && format[i+1] == 'N' {
+			width := int(directive - '0')
+			i++
+			nanos := fmt.Sprintf("%09d", value.Nanosecond())
+			output.WriteString(nanos[:width])
+			continue
+		}
 		if directive == ':' && i+1 < len(format) && format[i+1] == 'z' {
 			i++
 			_, offset := value.Zone()
@@ -183,6 +192,8 @@ func formatDate(value time.Time, format string) string {
 		}
 		if directive == 's' {
 			output.WriteString(strconv.FormatInt(value.Unix(), 10))
+		} else if directive == 'N' {
+			fmt.Fprintf(&output, "%09d", value.Nanosecond())
 		} else if layout, ok := layouts[directive]; ok {
 			output.WriteString(value.Format(layout))
 		} else {

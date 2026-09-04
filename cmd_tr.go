@@ -11,6 +11,9 @@ func init() { Register("tr", cmdTr) }
 
 func cmdTr(ctx context.Context, e *Env) int {
 	flags, operands := splitArgs(e.Args[1:])
+	if !validateShortFlags(e, flags, "d") {
+		return 2
+	}
 	deleteMode := flags['d']
 	if len(operands) < 1 || !deleteMode && len(operands) < 2 {
 		e.Errorf("missing operand")
@@ -60,6 +63,17 @@ func cmdTr(ctx context.Context, e *Env) int {
 }
 
 func expandTrSet(value string) []rune {
+	classes := map[string]string{
+		"[:alnum:]": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+		"[:alpha:]": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+		"[:digit:]": "0123456789",
+		"[:lower:]": "abcdefghijklmnopqrstuvwxyz",
+		"[:space:]": " \t\n\r\f\v",
+		"[:upper:]": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+	}
+	if expanded, ok := classes[value]; ok {
+		value = expanded
+	}
 	value = strings.ReplaceAll(value, `\n`, "\n")
 	value = strings.ReplaceAll(value, `\t`, "\t")
 	runes := []rune(value)

@@ -12,7 +12,10 @@ func init() { Register("touch", cmdTouch) }
 // cmdTouch creates empty files that do not exist and updates the modification
 // time of files that do.
 func cmdTouch(_ context.Context, e *Env) int {
-	_, operands := splitArgs(e.Args[1:])
+	flags, operands := splitArgs(e.Args[1:])
+	if !validateShortFlags(e, flags, "") {
+		return 2
+	}
 	if len(operands) == 0 {
 		e.Errorf("missing file operand")
 		return 1
