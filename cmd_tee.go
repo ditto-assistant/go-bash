@@ -10,6 +10,9 @@ func init() { Register("tee", cmdTee) }
 
 func cmdTee(_ context.Context, e *Env) int {
 	flags, operands := splitArgs(e.Args[1:])
+	if !validateShortFlags(e, flags, "a") {
+		return 2
+	}
 	writers := []io.Writer{e.Stdout}
 	files := make([]io.Closer, 0, len(operands))
 	openFlags := os.O_CREATE | os.O_WRONLY | os.O_TRUNC

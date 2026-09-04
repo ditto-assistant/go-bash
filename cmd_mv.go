@@ -2,7 +2,9 @@ package gobash
 
 import (
 	"context"
+	"fmt"
 	"path"
+	"strings"
 
 	"github.com/spf13/afero"
 )
@@ -10,7 +12,10 @@ import (
 func init() { Register("mv", cmdMv) }
 
 func cmdMv(_ context.Context, e *Env) int {
-	_, operands := splitArgs(e.Args[1:])
+	flags, operands := splitArgs(e.Args[1:])
+	if !validateShortFlags(e, flags, "n") {
+		return 2
+	}
 	if len(operands) < 2 {
 		e.Errorf("missing destination file operand")
 		return 1
@@ -24,11 +29,21 @@ func cmdMv(_ context.Context, e *Env) int {
 	}
 	code := 0
 	for _, source := range sources {
+		sourcePath := e.Resolve(source)
 		target := destination
 		if destIsDir {
 			target = path.Join(destination, path.Base(source))
 		}
-		if err := e.FS.Rename(e.Resolve(source), target); err != nil {
+		if info, err := e.FS.Stat(sourcePath); err == nil && info.IsDir() &&
+			(target == sourcePath || strings.HasPrefix(target, strings.TrimRight(sourcePath, "/")+"/")) {
+			e.Errorf("cannot move '%s': %v", source, fmt.Errorf("cannot move a directory into itself"))
+			code = 1
+			continue
+		}
+		if exists, _ := afero.Exists(e.FS, target); flags['n'] && exists {
+			continue
+		}
+		if err := e.FS.Rename(sourcePath, target); err != nil {
 			e.Errorf("cannot move '%s': %v", source, err)
 			code = 1
 		}

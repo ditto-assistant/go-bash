@@ -19,6 +19,7 @@ type findOptions struct {
 	ignoreCase bool
 	typeFilter byte
 	maxDepth   int
+	print0     bool
 }
 
 func cmdFind(ctx context.Context, e *Env) int {
@@ -69,7 +70,11 @@ func cmdFind(ctx context.Context, e *Env) int {
 		if rel != "" {
 			display = strings.TrimRight(opts.root, "/") + "/" + rel
 		}
-		_, err = fmt.Fprintln(e.Stdout, display)
+		if opts.print0 {
+			_, err = fmt.Fprint(e.Stdout, display+"\x00")
+		} else {
+			_, err = fmt.Fprintln(e.Stdout, display)
+		}
 		return err
 	})
 	if err != nil {
@@ -93,6 +98,9 @@ func parseFindOptions(e *Env) (findOptions, bool) {
 		case "-print":
 			// Printing matching paths is already the default action. Accept the
 			// explicit GNU/BSD spelling without consuming another argument.
+			continue
+		case "-print0":
+			opts.print0 = true
 			continue
 		case "-name", "-iname", "-type", "-maxdepth":
 			if i+1 >= len(args) {

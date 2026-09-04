@@ -11,6 +11,9 @@ func init() { Register("uniq", cmdUniq) }
 
 func cmdUniq(ctx context.Context, e *Env) int {
 	flags, operands := splitArgs(e.Args[1:])
+	if !validateShortFlags(e, flags, "cdui") {
+		return 2
+	}
 	if len(operands) > 1 {
 		e.Errorf("extra operand %s", operands[1])
 		return 1

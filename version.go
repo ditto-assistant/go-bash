@@ -2,7 +2,7 @@ package gobash
 
 const (
 	// Version is the go-bash release version. Keep it aligned with the module tag.
-	Version = "v0.4.0"
+	Version = "v0.5.0"
 
 	// BashCompatibility is the GNU Bash language compatibility target. go-bash
 	// deliberately identifies itself with a suffix rather than claiming to be
@@ -16,5 +16,19 @@ const (
 	// Bash language compatibility target.
 	Runtime = "go-bash/mvdan-sh"
 	// RuntimeVersion identifies the embedded mvdan/sh interpreter version.
-	RuntimeVersion = "mvdan-sh/v3.13.1"
+	RuntimeVersion = "mvdan-sh/v3.14.0"
 )
+
+// BashLimitations returns deliberate or upstream compatibility boundaries
+// that commonly affect generated agent scripts. Keep this list concise and
+// actionable; gobash info exposes it at runtime.
+func BashLimitations() []string {
+	return []string{
+		"no process substitution; use pipelines or VFS temporary files",
+		"no PIPESTATUS; use set -o pipefail and check the pipeline status",
+		"read -d/-n/-N/-t are unavailable; use xargs -0, jq, or outer JavaScript",
+		"some associative-array key syntax differs; quote complex keys or use jq/outer JavaScript",
+		"BASH_SOURCE, BASH_LINENO, and FUNCNAME are unavailable",
+		"set -E, shopt -p/-q, and declare -i are unavailable",
+	}
+}

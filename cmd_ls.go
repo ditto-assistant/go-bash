@@ -16,7 +16,11 @@ func init() { Register("ls", cmdLs) }
 // form when piped — the common case for agents.
 func cmdLs(_ context.Context, e *Env) int {
 	flags, operands := splitArgs(e.Args[1:])
+	if !validateShortFlags(e, flags, "a1d") {
+		return 2
+	}
 	showAll := flags['a']
+	listDirectories := !flags['d']
 	if len(operands) == 0 {
 		operands = []string{"."}
 	}
@@ -29,7 +33,7 @@ func cmdLs(_ context.Context, e *Env) int {
 			code = 1
 			continue
 		}
-		if !fi.IsDir() {
+		if !fi.IsDir() || !listDirectories {
 			if _, err := fmt.Fprintln(e.Stdout, p); err != nil {
 				e.Errorf("%v", err)
 				code = 1

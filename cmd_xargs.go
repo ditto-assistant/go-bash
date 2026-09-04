@@ -40,7 +40,12 @@ func cmdXargs(ctx context.Context, e *Env) int {
 		e.Errorf("input exceeds %d-byte limit", maxXargsInput)
 		return 1
 	}
-	items, err := xargsFields(string(input), opts.null, e.Environ)
+	var items []string
+	if opts.replace != "" && !opts.null {
+		items = xargsLines(string(input))
+	} else {
+		items, err = xargsFields(string(input), opts.null, e.Environ)
+	}
 	if err != nil {
 		e.Errorf("%v", err)
 		return 1
@@ -77,6 +82,22 @@ func cmdXargs(ctx context.Context, e *Env) int {
 	return 0
 }
 
+func xargsLines(input string) []string {
+	input = strings.TrimSuffix(input, "\n")
+	if input == "" {
+		return nil
+	}
+	lines := strings.Split(input, "\n")
+	out := lines[:0]
+	for _, line := range lines {
+		line = strings.TrimSuffix(line, "\r")
+		if strings.TrimSpace(line) != "" {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
 func parseXargsOptions(e *Env) (xargsOptions, bool) {
 	opts := xargsOptions{command: []string{"echo"}}
 	for i := 1; i < len(e.Args); i++ {
@@ -102,6 +123,13 @@ func parseXargsOptions(e *Env) (xargsOptions, bool) {
 			value, err := strconv.Atoi(arg[2:])
 			if err != nil || value <= 0 {
 				e.Errorf("invalid max-args %q", arg[2:])
+				return opts, false
+			}
+			opts.maxArgs = value
+		case strings.HasPrefix(arg, "--max-args="):
+			value, err := strconv.Atoi(strings.TrimPrefix(arg, "--max-args="))
+			if err != nil || value <= 0 {
+				e.Errorf("invalid max-args %q", strings.TrimPrefix(arg, "--max-args="))
 				return opts, false
 			}
 			opts.maxArgs = value

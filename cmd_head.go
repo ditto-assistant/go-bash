@@ -68,9 +68,19 @@ func parseLineCount(e *Env, defaultCount int) (int, []string, bool) {
 				return 0, nil, false
 			}
 			count = n
+		case strings.HasPrefix(a, "--lines="):
+			n, err := strconv.Atoi(strings.TrimPrefix(a, "--lines="))
+			if err != nil || n < 0 {
+				e.Errorf("invalid number of lines: %s", a)
+				return 0, nil, false
+			}
+			count = n
 		case len(a) > 1 && a[0] == '-' && allDigits(a[1:]):
 			n, _ := strconv.Atoi(a[1:])
 			count = n
+		case strings.HasPrefix(a, "-") && a != "-":
+			e.Errorf("unsupported option: %s", a)
+			return 0, nil, false
 		default:
 			operands = append(operands, a)
 		}

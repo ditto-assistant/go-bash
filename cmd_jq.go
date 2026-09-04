@@ -14,7 +14,7 @@ func init() { Register("jq", cmdJq) }
 
 func cmdJq(ctx context.Context, e *Env) int {
 	if len(e.Args) == 2 && e.Args[1] == "--help" {
-		_, _ = fmt.Fprintln(e.Stdout, "usage: jq [-rscnSe] [--sort-keys] [--exit-status] filter [files...]")
+		_, _ = fmt.Fprintln(e.Stdout, "usage: jq [-RrscnSe] [--arg name value] [--argjson name value] filter [files...]")
 		return 0
 	}
 	opts, query, operands, ok := parseJqArgs(e)
@@ -26,9 +26,34 @@ func cmdJq(ctx context.Context, e *Env) int {
 		e.Errorf("compile error: %v", err)
 		return 3
 	}
+	code, err := gojq.Compile(parsed, gojq.WithVariables(opts.variableNames))
+	if err != nil {
+		e.Errorf("compile error: %v", err)
+		return 3
+	}
 	inputs := make([]any, 0)
 	if opts.nullInput {
 		inputs = append(inputs, nil)
+	} else if opts.rawInput && opts.slurp {
+		var raw strings.Builder
+		status := forEachInput(ctx, e, operands, func(ctx context.Context, _ string, r io.Reader) error {
+			_, err := io.Copy(&raw, r)
+			return err
+		})
+		if status != 0 {
+			return 4
+		}
+		inputs = append(inputs, raw.String())
+	} else if opts.rawInput {
+		status := forEachInput(ctx, e, operands, func(ctx context.Context, _ string, r io.Reader) error {
+			return scanLines(ctx, r, func(line string, _ int) error {
+				inputs = append(inputs, line)
+				return nil
+			})
+		})
+		if status != 0 {
+			return 4
+		}
 	} else {
 		code := forEachInput(ctx, e, operands, func(ctx context.Context, _ string, r io.Reader) error {
 			dec := json.NewDecoder(r)
@@ -51,13 +76,13 @@ func cmdJq(ctx context.Context, e *Env) int {
 			return 4
 		}
 	}
-	if opts.slurp {
+	if opts.slurp && !opts.rawInput {
 		inputs = []any{inputs}
 	}
 	produced := false
 	var lastValue any
 	for _, input := range inputs {
-		iter := parsed.RunWithContext(ctx, input)
+		iter := code.RunWithContext(ctx, input, opts.variableValues...)
 		for {
 			value, more := iter.Next()
 			if !more {
@@ -107,11 +132,14 @@ func cmdJq(ctx context.Context, e *Env) int {
 }
 
 type jqOptions struct {
-	raw        bool
-	compact    bool
-	slurp      bool
-	nullInput  bool
-	exitStatus bool
+	raw            bool
+	compact        bool
+	slurp          bool
+	nullInput      bool
+	exitStatus     bool
+	rawInput       bool
+	variableNames  []string
+	variableValues []any
 }
 
 func parseJqArgs(e *Env) (opts jqOptions, query string, operands []string, ok bool) {
@@ -136,6 +164,27 @@ func parseJqArgs(e *Env) (opts jqOptions, query string, operands []string, ok bo
 			opts.nullInput = true
 		case "--exit-status":
 			opts.exitStatus = true
+		case "--raw-input":
+			opts.rawInput = true
+		case "--arg", "--argjson":
+			if len(args) < 3 {
+				e.Errorf("option %s requires a name and value", a)
+				return opts, "", nil, false
+			}
+			name, value := args[1], any(args[2])
+			if a == "--argjson" {
+				var parsed any
+				decoder := json.NewDecoder(strings.NewReader(args[2]))
+				decoder.UseNumber()
+				if err := decoder.Decode(&parsed); err != nil {
+					e.Errorf("invalid JSON for --argjson %s: %v", name, err)
+					return opts, "", nil, false
+				}
+				value = parsed
+			}
+			opts.variableNames = append(opts.variableNames, "$"+name)
+			opts.variableValues = append(opts.variableValues, value)
+			args = args[2:]
 		case "--sort-keys", "--monochrome-output", "--color-output":
 			// encoding/json sorts string map keys and color is never emitted.
 		default:
@@ -155,6 +204,8 @@ func parseJqArgs(e *Env) (opts jqOptions, query string, operands []string, ok bo
 					opts.nullInput = true
 				case 'e':
 					opts.exitStatus = true
+				case 'R':
+					opts.rawInput = true
 				case 'S', 'M', 'C':
 					// encoding/json sorts string map keys and color is never emitted.
 				default:

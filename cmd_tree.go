@@ -13,6 +13,9 @@ func init() { Register("tree", cmdTree) }
 
 func cmdTree(ctx context.Context, e *Env) int {
 	flags, operands := splitArgs(e.Args[1:])
+	if !validateShortFlags(e, flags, "a") {
+		return 2
+	}
 	if len(operands) == 0 {
 		operands = []string{"."}
 	}

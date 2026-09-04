@@ -33,6 +33,9 @@ func cmdSeq(ctx context.Context, e *Env) int {
 		case e.Args[i] == "--help":
 			_, _ = fmt.Fprintln(e.Stdout, "usage: seq [-w] [-s separator] [first [increment]] last")
 			return 0
+		case strings.HasPrefix(e.Args[i], "-") && len(e.Args[i]) > 1 && !allNumeric(e.Args[i]):
+			e.Errorf("unsupported option: %s", e.Args[i])
+			return 2
 		default:
 			operands = append(operands, e.Args[i])
 		}
@@ -94,4 +97,9 @@ func cmdSeq(ctx context.Context, e *Env) int {
 		_, _ = fmt.Fprintln(e.Stdout)
 	}
 	return 0
+}
+
+func allNumeric(value string) bool {
+	_, err := strconv.ParseInt(value, 10, 64)
+	return err == nil
 }

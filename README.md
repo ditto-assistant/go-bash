@@ -4,7 +4,7 @@ A simulated bash environment with an in-memory filesystem, for AI agents — a G
 port of the ideas behind [just-bash](https://github.com/vercel-labs/just-bash).
 
 Agents need a shell, but giving them a *real* shell is risky. `go-bash` gives
-them a real bash *language* with pipes, redirects, variables, functions, loops
+them a modern Bash-compatible *language* with pipes, redirects, variables, functions, loops
 and globs — but the filesystem is virtual (in-memory), network is opt-in, and
 nothing touches the host. No OS-level sandbox required.
 
@@ -33,11 +33,16 @@ of reimplemented coreutils:
 The interpreter's `ExecHandlers` middleware dispatches `argv[0]` to a registered
 Go builtin; there is **no fall-through to host binaries** — an unknown command
 is a `command not found` (exit 127). The `Open`/`Stat`/`ReadDir` handlers route
-redirects, globbing and path tests to the same in-memory filesystem.
+redirects and globbing to the same in-memory filesystem; the `Access` handler
+keeps `cd` and `-r`/`-w`/`-x` tests in that VFS as well.
 
-This is a Bash-compatible interpreter, not GNU Bash or a Linux container. `$0`
+This is a Bash-compatible interpreter, not GNU Bash or a Linux container. It
+tracks the current Bash 5.3 patch level while keeping a distinct implementation
+identity. `$0`
 reports `bash`, and `$BASH_VERSION` reports the explicitly suffixed compatibility
 identity `5.3.15(1)-go-bash`; `$BASH_COMPAT` reports the `5.3` language target.
+`$BASH_VERSINFO` reports the same compatibility tuple. The embedded interpreter
+is mvdan/sh v3.14.0; go-bash does not claim to be the GNU executable.
 `gobash info` identifies the go-bash and mvdan/sh versions, the virtual working
 directory, and the sandbox boundary.
 `gobash commands` is the authoritative external-command inventory, and
@@ -66,14 +71,31 @@ their GNU/BSD counterparts. The most common result-inspection forms are:
 
 | Command | Supported forms |
 |---------|-----------------|
-| `find` | one path plus `-maxdepth N`, `-type f\|d`, `-name`, `-iname`, and optional `-print`, in any order; predicates are implicitly ANDed |
-| `jq` | `-r`, `-c`, `-s`, `-n`, `-S`, `-e` (including combined short flags), plus their common long names; `-e` follows jq's last-result truthiness exit codes |
+| `find` | one path plus `-maxdepth N`, `-type f\|d`, `-name`, `-iname`, `-print`, and `-print0`, in any order; predicates are implicitly ANDed |
+| `jq` | `-R`, `-r`, `-c`, `-s`, `-n`, `-S`, `-e`, `--arg`, and `--argjson`; `-e` follows jq's last-result truthiness exit codes |
 | `date` | `-u`, GNU-style `+FORMAT`, `-d` with `now`/`today`/`tomorrow`/`yesterday`, RFC3339 or common date/time anchors, `@TIMESTAMP`, and signed seconds/minutes/hours/days/weeks arithmetic; `-u` also parses timezone-free anchors as UTC |
-| `xargs` | `-0`, `-r`, `-n`, and `-I`; invoked argv resolves through the same shell-aware dispatcher, so both shell builtins such as `printf` and registered external commands work |
+| `grep` / `rg` | grep BRE plus `-E`/`-F`, `-w`, `-A`/`-B`/`-C`, recursive search, line/count/file modes; rg adds implicit recursion, `--files`, and globstar-aware `-g`/`--glob` includes/excludes |
+| `tail` | `-n N`, `-n +N`, `-nN`, and `--lines=N` |
+| `xargs` | `-0`, `-r`, `-n`, and line-preserving `-I`; invoked argv resolves through the same shell-aware dispatcher, so both shell builtins such as `printf` and registered external commands work |
+| `printf` | common Bash formats and escapes including mixed `%q`, `%b`, numeric width/precision, `--`, and shell-local `-v`; explicit `command printf` and `builtin printf` use the same formatter |
 
-Use these commands' `--help` output for their concise runtime inventory. Unsupported
-predicates, options, and formats fail explicitly rather than falling through to
-a host executable.
+Use `gobash commands`, `gobash info --json`, and the supported forms above as
+the runtime inventory. Unsupported predicates, options, and formats fail
+explicitly rather than silently changing meaning or falling through to a host
+executable.
+
+### Bash compatibility boundary
+
+Each `Shell.Run` starts a fresh shell variable, function, option, and cwd state;
+the virtual filesystem persists. The most important remaining language
+boundaries are reported by `gobash info --json`: process substitution,
+`PIPESTATUS`, `read -d/-n/-N/-t`, associative-array edge cases,
+`BASH_SOURCE`/`BASH_LINENO`/`FUNCNAME`, `set -E`, `shopt -p/-q`, and
+`declare -i`. Prefer pipelines or VFS temporary files, `set -o pipefail`,
+`find -print0 | xargs -0`, jq, and the host application's outer JavaScript.
+Basic `cd`/`dirs`/`pushd`/`popd` behavior—including `dirs -p/-v/-c`—is kept
+consistent inside the VFS. Associative-array cardinality is compatible for
+both literal and dynamic assignments; quote keys containing shell syntax.
 
 `Shell.Run` also bounds script bytes, captured output, and external command
 invocations. Runs have a five-second default deadline; hosts can tighten it
@@ -85,7 +107,10 @@ For structured host integration, `Shell.RunInput` accepts an `io.Reader` for
 stdin. A host can JSON-encode a value into stdin, run a jq pipeline, and decode
 the single JSON value written to stdout. This keeps Bash focused on VFS and
 pipeline work while an outer JavaScript layer owns rich computation and tool
-calls.
+calls. The execution deadline applies while the interpreter is running, but Go
+cannot forcibly cancel an arbitrary `io.Reader` blocked inside its own `Read`
+method; strict-deadline callers should use finite in-memory input or a
+context-aware reader. Code Mode uses a finite `bytes.Reader`.
 
 ## License
 
