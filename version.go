@@ -2,7 +2,7 @@ package gobash
 
 const (
 	// Version is the go-bash release version. Keep it aligned with the module tag.
-	Version = "v0.5.0"
+	Version = "v0.5.1"
 
 	// BashCompatibility is the GNU Bash language compatibility target. go-bash
 	// deliberately identifies itself with a suffix rather than claiming to be

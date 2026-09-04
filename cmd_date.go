@@ -41,7 +41,11 @@ func cmdDate(_ context.Context, e *Env) int {
 		case arg == "-Iseconds" || arg == "--iso-8601=seconds":
 			format = "%Y-%m-%dT%H:%M:%S%:z"
 		case arg == "--help":
-			_, _ = fmt.Fprintln(e.Stdout, "usage: date [-u] [-d date] [+format]")
+			_, _ = fmt.Fprintln(e.Stdout, `usage: date [-u] [-d date] [+format]
+  -d accepts now, today, tomorrow, yesterday, @TIMESTAMP,
+  YYYY-MM-DD, YYYY-MM-DD HH:MM:SS[ UTC| +/-HHMM| +/-HH:MM], RFC3339,
+  relative N seconds|minutes|hours|days|weeks [ago], and an absolute
+  anchor followed by one relative offset (for example: DATE + 1 day)`)
 			return 0
 		default:
 			e.Errorf("unsupported operand %q", arg)
@@ -118,7 +122,18 @@ func parseDateInput(base time.Time, input string) (time.Time, error) {
 }
 
 func parseAbsoluteDate(base time.Time, input string) (time.Time, bool) {
-	for _, layout := range []string{time.RFC3339, "2006-01-02 15:04:05", "2006-01-02"} {
+	if strings.HasSuffix(input, " UTC") {
+		if parsed, err := time.ParseInLocation("2006-01-02 15:04:05 MST", input, time.UTC); err == nil {
+			return parsed, true
+		}
+	}
+	for _, layout := range []string{
+		time.RFC3339,
+		"2006-01-02 15:04:05 -0700",
+		"2006-01-02 15:04:05 -07:00",
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+	} {
 		if parsed, err := time.ParseInLocation(layout, input, base.Location()); err == nil {
 			return parsed, true
 		}

@@ -238,6 +238,7 @@ func (s *Shell) RunIO(ctx context.Context, script string, stdin io.Reader, stdou
 		return 2, err
 	}
 	rewriteExplicitBuiltinPrintf(file)
+	rewriteTypeAll(file)
 	rewriteArrayLengths(file)
 	guardInvalidOctalArithmetic(file)
 	var processSubstitution bool
