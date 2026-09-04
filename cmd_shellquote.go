@@ -199,7 +199,7 @@ func renderBashPrintf(format string, args []string) (string, error) {
 				if value != "" {
 					r, _ = utf8FirstRune(value)
 				}
-				out.WriteString(fmt.Sprintf(directive, r))
+				_, _ = fmt.Fprintf(&out, directive, r)
 			case 'd', 'i', 'o', 'x', 'X', 'u':
 				n, err := parsePrintfInteger(value)
 				if err != nil {
@@ -210,16 +210,16 @@ func renderBashPrintf(format string, args []string) (string, error) {
 					goDirective = directive[:len(directive)-1] + "d"
 				}
 				if verb == 'u' {
-					out.WriteString(fmt.Sprintf(goDirective[:len(goDirective)-1]+"d", uint64(n)))
+					_, _ = fmt.Fprintf(&out, goDirective[:len(goDirective)-1]+"d", uint64(n))
 				} else {
-					out.WriteString(fmt.Sprintf(goDirective, n))
+					_, _ = fmt.Fprintf(&out, goDirective, n)
 				}
 			case 'f', 'F', 'e', 'E', 'g', 'G':
 				n, err := strconv.ParseFloat(zeroIfEmpty(value), 64)
 				if err != nil {
 					return "", fmt.Errorf("%s: invalid number", value)
 				}
-				out.WriteString(fmt.Sprintf(directive, n))
+				_, _ = fmt.Fprintf(&out, directive, n)
 			default:
 				return "", fmt.Errorf("unsupported format character: %%%c", verb)
 			}
