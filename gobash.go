@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path"
 	"strings"
+	"time"
 
 	"github.com/spf13/afero"
 	"mvdan.cc/sh/v3/expand"
@@ -26,6 +28,8 @@ type Shell struct {
 	maxCommands int
 	maxFSBytes  int64
 	maxFSFiles  int
+	timeout     time.Duration
+	now         func() time.Time
 }
 
 // Option configures a [Shell].
@@ -73,24 +77,57 @@ func WithFSQuota(maxBytes int64, maxFiles int) Option {
 	}
 }
 
+// WithTimeout bounds each Run or RunIO invocation. The default is five
+// seconds. Callers may still provide an earlier deadline through the context.
+func WithTimeout(timeout time.Duration) Option {
+	return func(s *Shell) {
+		if timeout > 0 {
+			s.timeout = timeout
+		}
+	}
+}
+
+// WithNow supplies the clock used by time-aware commands such as date. It is
+// primarily useful for deterministic tests.
+func WithNow(now func() time.Time) Option {
+	return func(s *Shell) {
+		if now != nil {
+			s.now = now
+		}
+	}
+}
+
 // New creates a Shell. By default it uses a fresh in-memory filesystem rooted
-// at "/", with no host environment leakage.
+// at "/" with a virtual working directory of "/tmp" and no host environment
+// leakage.
 func New(opts ...Option) *Shell {
 	s := &Shell{
-		fs:          afero.NewMemMapFs(),
-		cwd:         "/",
-		env:         []string{"HOME=/root", "PWD=/"},
+		fs:  afero.NewMemMapFs(),
+		cwd: "/tmp",
+		env: []string{
+			"GOBASH_RUNTIME=mvdan-sh",
+			"HOME=/tmp",
+			"LOGNAME=agent",
+			"PATH=/gobash/bin",
+			"PWD=/tmp",
+			"SHELL=bash",
+			"USER=agent",
+		},
 		maxOutput:   64 << 10,
 		maxScript:   256 << 10,
 		maxCommands: 256,
 		maxFSBytes:  64 << 20,
 		maxFSFiles:  1024,
+		timeout:     5 * time.Second,
+		now:         time.Now,
 	}
 	for _, o := range opts {
 		o(s)
 	}
 	s.fs = newQuotaFS(s.fs, s.maxFSBytes, s.maxFSFiles)
+	s.cwd = path.Clean(s.cwd)
 	_ = s.fs.MkdirAll(s.cwd, 0o755)
+	_ = s.fs.MkdirAll("/tmp", 0o700)
 	return s
 }
 
@@ -100,10 +137,16 @@ func (s *Shell) FS() afero.Fs { return s.fs }
 
 // Result is the outcome of a captured [Shell.Run].
 type Result struct {
-	Stdout    string
-	Stderr    string
-	ExitCode  int
-	Truncated bool
+	Stdout          string
+	Stderr          string
+	ExitCode        int
+	Truncated       bool
+	StdoutTruncated bool
+	StderrTruncated bool
+	Shell           string
+	Runtime         string
+	Cwd             string
+	TimeoutMS       int64
 }
 
 // Run executes script, capturing stdout and stderr into the returned Result.
@@ -115,7 +158,10 @@ func (s *Shell) Run(ctx context.Context, script string) (Result, error) {
 	code, err := s.RunIO(ctx, script, strings.NewReader(""), stdout, stderr)
 	return Result{
 		Stdout: stdout.String(), Stderr: stderr.String(), ExitCode: code,
-		Truncated: stdout.truncated || stderr.truncated,
+		Truncated:       stdout.truncated || stderr.truncated,
+		StdoutTruncated: stdout.truncated, StderrTruncated: stderr.truncated,
+		Shell: "bash", Runtime: "go-bash/mvdan-sh", Cwd: s.cwd,
+		TimeoutMS: s.timeout.Milliseconds(),
 	}, err
 }
 
@@ -150,8 +196,10 @@ func (s *Shell) RunIO(ctx context.Context, script string, stdin io.Reader, stdou
 	if len(script) > s.maxScript {
 		return 2, fmt.Errorf("gobash: script exceeds %d-byte limit", s.maxScript)
 	}
+	ctx, cancel := context.WithTimeout(ctx, s.timeout)
+	defer cancel()
 	ctx = context.WithValue(ctx, runStateKey{}, &runState{maxCommands: s.maxCommands})
-	file, err := syntax.NewParser().Parse(strings.NewReader(script), "")
+	file, err := syntax.NewParser().Parse(strings.NewReader(commandPrelude()+script), "bash")
 	if err != nil {
 		return 2, err
 	}
@@ -174,6 +222,14 @@ func (s *Shell) RunIO(ctx context.Context, script string, stdin io.Reader, stdou
 	var status interp.ExitStatus
 	if errors.As(runErr, &status) {
 		return int(status), nil
+	}
+	if errors.Is(runErr, context.DeadlineExceeded) {
+		_, _ = fmt.Fprintln(stderr, "bash: execution timed out")
+		return 124, nil
+	}
+	if errors.Is(runErr, context.Canceled) {
+		_, _ = fmt.Fprintln(stderr, "bash: execution canceled")
+		return 130, nil
 	}
 	return 1, runErr
 }

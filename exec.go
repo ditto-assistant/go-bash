@@ -3,8 +3,11 @@ package gobash
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"sync/atomic"
 
+	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/interp"
 )
 
@@ -24,30 +27,63 @@ func (s *Shell) execMiddleware(next interp.ExecHandlerFunc) interp.ExecHandlerFu
 		if len(args) == 0 {
 			return next(ctx, args)
 		}
-		if state, _ := ctx.Value(runStateKey{}).(*runState); state != nil &&
-			state.commands.Add(1) > int32(state.maxCommands) {
-			hc := interp.HandlerCtx(ctx)
-			_, _ = fmt.Fprintf(hc.Stderr, "gobash: command limit (%d) exceeded\n", state.maxCommands)
-			return interp.ExitStatus(124)
-		}
 		hc := interp.HandlerCtx(ctx)
-		fn, ok := lookup(args[0])
-		if !ok {
-			_, _ = fmt.Fprintf(hc.Stderr, "%s: command not found\n", args[0])
-			return interp.ExitStatus(127)
-		}
-		env := &Env{
-			Args:   args,
-			Stdin:  hc.Stdin,
-			Stdout: hc.Stdout,
-			Stderr: hc.Stderr,
-			FS:     s.fs,
-			Dir:    hc.Dir,
-		}
-		code := fn(ctx, env)
+		code := s.runCommand(ctx, args, hc)
 		if code == 0 {
 			return nil
 		}
 		return interp.ExitStatus(uint8(code))
 	}
+}
+
+func (s *Shell) runCommand(ctx context.Context, args []string, hc interp.HandlerContext) int {
+	if state, _ := ctx.Value(runStateKey{}).(*runState); state != nil &&
+		state.commands.Add(1) > int32(state.maxCommands) {
+		_, _ = fmt.Fprintf(hc.Stderr, "gobash: command limit (%d) exceeded\n", state.maxCommands)
+		return 124
+	}
+	if err := ctx.Err(); err != nil {
+		return 124
+	}
+	fn, ok := lookup(args[0])
+	if !ok {
+		_, _ = fmt.Fprintf(hc.Stderr, "%s: command not found\n", args[0])
+		return 127
+	}
+	runNested := func(nestedCtx context.Context, nestedArgs []string) int {
+		return s.runCommand(nestedCtx, nestedArgs, hc)
+	}
+	env := &Env{
+		Args: args, Stdin: hc.Stdin, Stdout: hc.Stdout, Stderr: hc.Stderr,
+		FS: s.fs, Dir: hc.Dir, Environ: exportedEnvironment(hc.Env),
+		Now: s.now, RunCommand: runNested,
+	}
+	return fn(ctx, env)
+}
+
+func exportedEnvironment(environ expand.Environ) []string {
+	values := make(map[string]string)
+	environ.Each(func(name string, variable expand.Variable) bool {
+		if variable.IsSet() && variable.Exported && variable.Kind == expand.String {
+			values[name] = variable.String()
+		}
+		return true
+	})
+	pairs := make([]string, 0, len(values))
+	for name, value := range values {
+		pairs = append(pairs, name+"="+value)
+	}
+	sort.Strings(pairs)
+	return pairs
+}
+
+// commandPrelude makes every registered command visible to mvdan's `command
+// -v` builtin. Each function immediately re-enters the fail-closed dispatcher;
+// no host executable is resolved or invoked.
+func commandPrelude() string {
+	var b strings.Builder
+	for _, name := range Commands() {
+		fmt.Fprintf(&b, "%s() { command %s \"$@\"; }\n", name, name)
+	}
+	return b.String()
 }
