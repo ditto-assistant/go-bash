@@ -34,3 +34,10 @@ func TestDateUTCAnchoredArithmeticUsesUTCForNaiveAnchor(t *testing.T) {
 		t.Fatalf("UTC anchored arithmetic: %+v", result)
 	}
 }
+
+func TestDateAnchoredArithmeticWithExplicitZone(t *testing.T) {
+	result := run(t, New(), `date -u -d '2026-01-01 00:00:00 UTC + 1 day' +%FT%TZ`)
+	if result.ExitCode != 0 || result.Stdout != "2026-01-02T00:00:00Z\n" || result.Stderr != "" {
+		t.Fatalf("UTC zone anchor: %+v", result)
+	}
+}

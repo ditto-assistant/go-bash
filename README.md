@@ -47,7 +47,10 @@ is mvdan/sh v3.14.0; go-bash does not claim to be the GNU executable.
 directory, and the sandbox boundary.
 `gobash commands` is the authoritative external-command inventory, and
 `command -v <name>` accurately recognizes each listed command plus interpreter
-builtins. `bash --help` provides the same boundary summary. Nested `bash -c`
+builtins. `sh` is a discoverable compatibility alias for the current interpreter.
+Because the sandbox has one resolution per name, `type -a NAME` is equivalent
+to `type NAME` and reports that single resolution.
+`bash --help` provides the same boundary summary. Nested `bash -c` or `sh -c`
 invocations are intentionally unavailable because the current interpreter is
 already the sandbox boundary. Python, Node.js, zsh, package installation, host
 executables, host files, and network access are intentionally unavailable;
@@ -73,7 +76,7 @@ their GNU/BSD counterparts. The most common result-inspection forms are:
 |---------|-----------------|
 | `find` | one path plus `-maxdepth N`, `-type f\|d`, `-name`, `-iname`, `-print`, and `-print0`, in any order; predicates are implicitly ANDed |
 | `jq` | `-R`, `-r`, `-c`, `-s`, `-n`, `-S`, `-e`, `--arg`, and `--argjson`; `-e` follows jq's last-result truthiness exit codes |
-| `date` | `-u`, GNU-style `+FORMAT`, `-d` with `now`/`today`/`tomorrow`/`yesterday`, RFC3339 or common date/time anchors, `@TIMESTAMP`, and signed seconds/minutes/hours/days/weeks arithmetic; `-u` also parses timezone-free anchors as UTC |
+| `date` | `-u`, GNU-style `+FORMAT`, `-d` with `now`/`today`/`tomorrow`/`yesterday`, RFC3339, `YYYY-MM-DD`, `YYYY-MM-DD HH:MM:SS` with an optional `UTC` or numeric offset, `@TIMESTAMP`, and one signed seconds/minutes/hours/days/weeks offset; `-u` also parses timezone-free anchors as UTC |
 | `grep` / `rg` | grep BRE plus `-E`/`-F`, `-w`, `-A`/`-B`/`-C`, recursive search, line/count/file modes; rg adds implicit recursion, `--files`, and globstar-aware `-g`/`--glob` includes/excludes |
 | `tail` | `-n N`, `-n +N`, `-nN`, and `--lines=N` |
 | `xargs` | `-0`, `-r`, `-n`, and line-preserving `-I`; invoked argv resolves through the same shell-aware dispatcher, so both shell builtins such as `printf` and registered external commands work |
@@ -101,7 +104,9 @@ both literal and dynamic assignments; quote keys containing shell syntax.
 invocations. Runs have a five-second default deadline; hosts can tighten it
 with `WithTimeout` or an earlier `context.Context` deadline. Results identify
 stdout and stderr truncation separately as well as through the compatibility
-`Truncated` field.
+`Truncated` field. Deadline cancellation is abrupt: do not rely on an `EXIT`
+trap to finish cleanup after a timeout. The VFS remains valid for a later run,
+so callers can inspect or remove partial files explicitly.
 
 For structured host integration, `Shell.RunInput` accepts an `io.Reader` for
 stdin. A host can JSON-encode a value into stdin, run a jq pipeline, and decode

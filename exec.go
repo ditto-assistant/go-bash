@@ -192,6 +192,11 @@ func exportedEnvironment(environ expand.Environ) []string {
 func commandPrelude() string {
 	var b strings.Builder
 	b.WriteString("readonly BASH_VERSION\nif [ -z \"${BASH_VERSINFO+x}\" ]; then BASH_VERSINFO=(5 3 15 1 go-bash go-bash); readonly -a BASH_VERSINFO; fi\n")
+	// `sh` is an interpreter entry point rather than an external utility, so it
+	// cannot live in the command registry. Keep it discoverable like `bash`, but
+	// route invocation through the same nested-shell guard instead of starting a
+	// second interpreter.
+	b.WriteString("sh() { command bash \"$@\"; }\n")
 	b.WriteString(`__gobash_dir_stack=("$PWD")
 cd() {
   builtin cd "$@" || return $?

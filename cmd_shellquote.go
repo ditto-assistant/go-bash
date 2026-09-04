@@ -40,6 +40,33 @@ func rewriteExplicitBuiltinPrintf(file *syntax.File) {
 	})
 }
 
+// rewriteTypeAll treats `type -a` as `type` because the sandbox has exactly one
+// resolution for every name: a shell construct/function or the fail-closed
+// external dispatcher. mvdan/sh otherwise rejects the common discovery flag as
+// unimplemented, even though its ordinary `type` output is accurate here.
+func rewriteTypeAll(file *syntax.File) {
+	syntax.Walk(file, func(node syntax.Node) bool {
+		call, ok := node.(*syntax.CallExpr)
+		if !ok || len(call.Args) < 2 {
+			return true
+		}
+		commandAt := 0
+		if first := call.Args[0].Lit(); first == "command" || first == "builtin" {
+			commandAt = 1
+		}
+		if len(call.Args) <= commandAt+1 || call.Args[commandAt].Lit() != "type" {
+			return true
+		}
+		for i := commandAt + 1; i < len(call.Args); i++ {
+			if call.Args[i].Lit() == "-a" && len(call.Args[i].Parts) == 1 {
+				call.Args = append(call.Args[:i], call.Args[i+1:]...)
+				break
+			}
+		}
+		return true
+	})
+}
+
 // rewriteArrayLengths works around an upstream associative-array length bug
 // while preserving the normal expansion shape, including inside double quotes.
 func rewriteArrayLengths(file *syntax.File) {
@@ -328,7 +355,12 @@ func decodePrintfDigits(value string, start, maxDigits, base int) (string, int) 
 		return value[:min(len(value), start)], min(len(value), start)
 	}
 	n, _ := strconv.ParseUint(value[start:end], base, 32)
-	return string(rune(n)), end
+	if value[1] == 'u' || value[1] == 'U' {
+		return string(rune(n)), end
+	}
+	// Octal and \x escapes are byte escapes in Bash printf, including values
+	// that are not valid standalone UTF-8. Preserve those bytes exactly.
+	return string([]byte{byte(n)}), end
 }
 
 func utf8FirstRune(value string) (rune, int) {
