@@ -13,6 +13,10 @@ import (
 func init() { Register("jq", cmdJq) }
 
 func cmdJq(ctx context.Context, e *Env) int {
+	if len(e.Args) == 2 && e.Args[1] == "--help" {
+		_, _ = fmt.Fprintln(e.Stdout, "usage: jq [-rscnS] [--sort-keys] filter [files...]")
+		return 0
+	}
 	raw, compact, slurp, nullInput, query, operands, ok := parseJqArgs(e)
 	if !ok {
 		return 2
@@ -92,37 +96,52 @@ func cmdJq(ctx context.Context, e *Env) int {
 
 func parseJqArgs(e *Env) (raw, compact, slurp, nullInput bool, query string, operands []string, ok bool) {
 	args := e.Args[1:]
-	for i := 0; i < len(args); i++ {
-		a := args[i]
+	for len(args) > 0 {
+		a := args[0]
 		if a == "--" {
-			args = args[i+1:]
+			args = args[1:]
 			break
 		}
 		if !strings.HasPrefix(a, "-") || a == "-" {
-			args = args[i:]
 			break
 		}
-		for _, flag := range strings.TrimPrefix(a, "-") {
-			switch flag {
-			case 'r':
-				raw = true
-			case 'c':
-				compact = true
-			case 's':
-				slurp = true
-			case 'n':
-				nullInput = true
-			case 'M', 'C', 'e':
-				// Color is never emitted. -e is accepted for agent compatibility;
-				// result truthiness does not alter the exit code yet.
-			default:
-				e.Errorf("unsupported option -- %c", flag)
+		switch a {
+		case "--raw-output":
+			raw = true
+		case "--compact-output":
+			compact = true
+		case "--slurp":
+			slurp = true
+		case "--null-input":
+			nullInput = true
+		case "--sort-keys", "--monochrome-output", "--color-output", "--exit-status":
+			// encoding/json sorts string map keys, color is never emitted, and
+			// exit-status remains accepted without changing result truthiness.
+		default:
+			if strings.HasPrefix(a, "--") {
+				e.Errorf("unsupported option: %s", a)
 				return false, false, false, false, "", nil, false
 			}
+			for _, flag := range strings.TrimPrefix(a, "-") {
+				switch flag {
+				case 'r':
+					raw = true
+				case 'c':
+					compact = true
+				case 's':
+					slurp = true
+				case 'n':
+					nullInput = true
+				case 'S', 'M', 'C', 'e':
+					// encoding/json sorts string map keys, color is never emitted,
+					// and -e remains accepted without changing result truthiness.
+				default:
+					e.Errorf("unsupported option -- %c", flag)
+					return false, false, false, false, "", nil, false
+				}
+			}
 		}
-		if i == len(e.Args[1:])-1 {
-			args = nil
-		}
+		args = args[1:]
 	}
 	if len(args) == 0 {
 		e.Errorf("missing filter")
