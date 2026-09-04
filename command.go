@@ -6,8 +6,10 @@ import (
 	"io"
 	"path"
 	"sort"
+	"time"
 
 	"github.com/spf13/afero"
+	"mvdan.cc/sh/v3/syntax"
 )
 
 // CommandFunc implements a single builtin command. It returns the process exit
@@ -27,6 +29,13 @@ type Env struct {
 	FS afero.Fs
 	// Dir is the current working directory (absolute).
 	Dir string
+	// Environ is the sorted exported environment for this invocation.
+	Environ []string
+	// Now returns the shell clock time.
+	Now func() time.Time
+	// RunCommand invokes another registered command in the same sandbox and
+	// counts it against the command limit. It is used by commands such as xargs.
+	RunCommand func(context.Context, []string) int
 }
 
 // Resolve turns a possibly-relative path into a cleaned absolute path within
@@ -55,6 +64,9 @@ var registry = map[string]CommandFunc{}
 // Register adds a builtin under name. It panics on duplicate registration so
 // collisions surface at startup rather than silently shadowing.
 func Register(name string, fn CommandFunc) {
+	if !syntax.ValidName(name) {
+		panic("gobash: command name is not a safe shell identifier: " + name)
+	}
 	if _, dup := registry[name]; dup {
 		panic("gobash: duplicate command registration: " + name)
 	}

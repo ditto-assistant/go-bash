@@ -9,7 +9,7 @@ and globs — but the filesystem is virtual (in-memory), network is opt-in, and
 nothing touches the host. No OS-level sandbox required.
 
 ```go
-sh := gobash.New() // fresh in-memory filesystem rooted at "/"
+sh := gobash.New() // fresh in-memory filesystem; working directory is /tmp
 res, _ := sh.Run(context.Background(), `
   mkdir -p /data
   echo "hello" > /data/greeting.txt
@@ -35,18 +35,32 @@ Go builtin; there is **no fall-through to host binaries** — an unknown command
 is a `command not found` (exit 127). The `Open`/`Stat`/`ReadDir` handlers route
 redirects, globbing and path tests to the same in-memory filesystem.
 
+This is a Bash-compatible interpreter, not a Linux container. `$0` reports
+`bash`, while `gobash info` identifies the implementation as
+`go-bash/mvdan-sh`, the virtual working directory, and the sandbox boundary.
+`gobash commands` is the authoritative external-command inventory, and
+`command -v <name>` accurately recognizes each listed command plus interpreter
+builtins. `bash --help` provides the same boundary summary. Python, Node.js,
+zsh, package installation, host executables, host files, and network access are
+intentionally unavailable; callers can perform richer computation in their
+outer JavaScript runtime.
+
 See [`AGENTS.md`](./AGENTS.md) for the contributor contract (how to add a
 command, the test/TDD model, and the boundary rules).
 
 ## Included command set
 
 The initial agent/data-analysis toolset is implemented end-to-end:
-`cat`, `ls`, `mkdir`, `touch`, `rm`, `cp`, `mv`, `tree`, `head`, `tail`, `wc`,
+`bash`, `gobash`, `cat`, `ls`, `mkdir`, `touch`, `rm`, `cp`, `mv`, `tree`, `head`, `tail`, `wc`,
 `sort`, `uniq`, `cut`, `tr`, `grep`/`egrep`/`fgrep`, `rg`, `sed`, `awk`, `find`,
-`basename`, `dirname`, `jq`, `base64`, and `tee`.
+`basename`, `dirname`, `jq`, `base64`, `tee`, `date`, `env`, `printenv`,
+`whoami`, `seq`, `xargs`, and `mktemp`.
 
 `Shell.Run` also bounds script bytes, captured output, and external command
-invocations. Callers should still provide a deadline through `context.Context`.
+invocations. Runs have a five-second default deadline; hosts can tighten it
+with `WithTimeout` or an earlier `context.Context` deadline. Results identify
+stdout and stderr truncation separately as well as through the compatibility
+`Truncated` field.
 
 ## License
 
