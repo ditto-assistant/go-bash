@@ -10,6 +10,41 @@ import (
 func init() { Register("tail", cmdTail) }
 
 func cmdTail(ctx context.Context, e *Env) int {
+	if len(e.Args) == 2 && (e.Args[1] == "--help" || e.Args[1] == "-h") {
+		_, _ = fmt.Fprintln(e.Stdout, "usage: tail [-n lines|-c bytes] [file...]")
+		return 0
+	}
+	if count, fromStart, operands, matched, ok := parseByteCount(e); matched {
+		if !ok {
+			return 1
+		}
+		multiple := len(operands) > 1
+		first := true
+		return forEachInput(ctx, e, operands, func(ctx context.Context, name string, r io.Reader) error {
+			if err := writeInputHeader(e, name, multiple, &first); err != nil {
+				return err
+			}
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			contents, err := io.ReadAll(r)
+			if err != nil {
+				return err
+			}
+			start := len(contents) - count
+			if fromStart {
+				start = count - 1
+			}
+			if start < 0 {
+				start = 0
+			}
+			if start > len(contents) {
+				start = len(contents)
+			}
+			_, err = e.Stdout.Write(contents[start:])
+			return err
+		})
+	}
 	count, operands, ok := parseLineCount(e, 10)
 	if !ok {
 		return 1

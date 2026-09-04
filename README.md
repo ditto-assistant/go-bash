@@ -78,7 +78,8 @@ their GNU/BSD counterparts. The most common result-inspection forms are:
 | `jq` | `-R`, `-r`, `-c`, `-s`, `-n`, `-S`, `-e`, `--arg`, and `--argjson`; `-e` follows jq's last-result truthiness exit codes |
 | `date` | `-u`, GNU-style `+FORMAT`, `-d` with `now`/`today`/`tomorrow`/`yesterday`, RFC3339, `YYYY-MM-DD`, `YYYY-MM-DD HH:MM:SS` with an optional `UTC` or numeric offset, `@TIMESTAMP`, and one signed seconds/minutes/hours/days/weeks offset; `-u` also parses timezone-free anchors as UTC |
 | `grep` / `rg` | grep BRE plus `-E`/`-F`, `-w`, `-A`/`-B`/`-C`, recursive search, line/count/file modes; rg adds implicit recursion, `--files`, and globstar-aware `-g`/`--glob` includes/excludes |
-| `tail` | `-n N`, `-n +N`, `-nN`, and `--lines=N` |
+| `ls` | one-entry-per-line output plus combinable `-a`, `-1`, `-d`, and `-l`; long output uses stable virtual owner/group names and UTC timestamps |
+| `head` / `tail` | line counts via `-n N`, `-n +N`, `-nN`, and `--lines=N`; byte counts via `-c N`, `-c +N`, `-cN`, and `--bytes=N` |
 | `xargs` | `-0`, `-r`, `-n`, and line-preserving `-I`; invoked argv resolves through the same shell-aware dispatcher, so both shell builtins such as `printf` and registered external commands work |
 | `printf` | common Bash formats and escapes including mixed `%q`, `%b`, numeric width/precision, `--`, and shell-local `-v`; explicit `command printf` and `builtin printf` use the same formatter |
 
