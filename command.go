@@ -33,8 +33,10 @@ type Env struct {
 	Environ []string
 	// Now returns the shell clock time.
 	Now func() time.Time
-	// RunCommand invokes another registered command in the same sandbox and
-	// counts it against the command limit. It is used by commands such as xargs.
+	// RunCommand invokes one argv vector through the same shell-aware dispatcher.
+	// It can resolve both interpreter builtins and registered external commands;
+	// external invocations count against the command limit. It is used by
+	// commands such as xargs.
 	RunCommand func(context.Context, []string) int
 }
 

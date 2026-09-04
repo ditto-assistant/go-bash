@@ -2,6 +2,7 @@ package gobash
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/interp"
+	"mvdan.cc/sh/v3/syntax"
 )
 
 type runStateKey struct{}
@@ -51,7 +53,7 @@ func (s *Shell) runCommand(ctx context.Context, args []string, hc interp.Handler
 		return 127
 	}
 	runNested := func(nestedCtx context.Context, nestedArgs []string) int {
-		return s.runCommand(nestedCtx, nestedArgs, hc)
+		return s.runShellCommand(nestedCtx, nestedArgs, hc)
 	}
 	env := &Env{
 		Args: args, Stdin: hc.Stdin, Stdout: hc.Stdout, Stderr: hc.Stderr,
@@ -59,6 +61,56 @@ func (s *Shell) runCommand(ctx context.Context, args []string, hc interp.Handler
 		Now: s.now, RunCommand: runNested,
 	}
 	return fn(ctx, env)
+}
+
+// runShellCommand safely re-enters the interpreter with one argv vector. The
+// quoting prevents xargs input from becoming shell syntax, while using an
+// interpreter runner lets commands such as printf resolve as shell builtins.
+func (s *Shell) runShellCommand(ctx context.Context, args []string, hc interp.HandlerContext) int {
+	if len(args) == 0 {
+		return 0
+	}
+	quoted := make([]string, len(args))
+	for i, arg := range args {
+		quoted[i] = shellQuote(arg)
+	}
+	file, err := syntax.NewParser().Parse(strings.NewReader(commandPrelude()+strings.Join(quoted, " ")), "xargs")
+	if err != nil {
+		_, _ = fmt.Fprintf(hc.Stderr, "xargs: parse command: %v\n", err)
+		return 2
+	}
+	runner, err := interp.New(
+		interp.StdIO(hc.Stdin, hc.Stdout, hc.Stderr),
+		interp.Dir(hc.Dir),
+		interp.Env(hc.Env),
+		interp.ExecHandlers(s.execMiddleware),
+		interp.OpenHandler(s.openHandler),
+		interp.StatHandler(s.statHandler),
+		interp.ReadDirHandler2(s.readDirHandler),
+	)
+	if err != nil {
+		_, _ = fmt.Fprintf(hc.Stderr, "xargs: initialize command: %v\n", err)
+		return 2
+	}
+	if err := runner.Run(ctx, file); err != nil {
+		var status interp.ExitStatus
+		if errors.As(err, &status) {
+			return int(status)
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return 124
+		}
+		if errors.Is(err, context.Canceled) {
+			return 130
+		}
+		_, _ = fmt.Fprintf(hc.Stderr, "xargs: run command: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
 func exportedEnvironment(environ expand.Environ) []string {

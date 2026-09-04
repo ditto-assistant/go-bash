@@ -14,10 +14,10 @@ func init() { Register("jq", cmdJq) }
 
 func cmdJq(ctx context.Context, e *Env) int {
 	if len(e.Args) == 2 && e.Args[1] == "--help" {
-		_, _ = fmt.Fprintln(e.Stdout, "usage: jq [-rscnS] [--sort-keys] filter [files...]")
+		_, _ = fmt.Fprintln(e.Stdout, "usage: jq [-rscnSe] [--sort-keys] [--exit-status] filter [files...]")
 		return 0
 	}
-	raw, compact, slurp, nullInput, query, operands, ok := parseJqArgs(e)
+	opts, query, operands, ok := parseJqArgs(e)
 	if !ok {
 		return 2
 	}
@@ -27,7 +27,7 @@ func cmdJq(ctx context.Context, e *Env) int {
 		return 3
 	}
 	inputs := make([]any, 0)
-	if nullInput {
+	if opts.nullInput {
 		inputs = append(inputs, nil)
 	} else {
 		code := forEachInput(ctx, e, operands, func(ctx context.Context, _ string, r io.Reader) error {
@@ -51,9 +51,11 @@ func cmdJq(ctx context.Context, e *Env) int {
 			return 4
 		}
 	}
-	if slurp {
+	if opts.slurp {
 		inputs = []any{inputs}
 	}
+	produced := false
+	var lastValue any
 	for _, input := range inputs {
 		iter := parsed.RunWithContext(ctx, input)
 		for {
@@ -65,7 +67,9 @@ func cmdJq(ctx context.Context, e *Env) int {
 				e.Errorf("%v", err)
 				return 5
 			}
-			if raw {
+			produced = true
+			lastValue = value
+			if opts.raw {
 				if s, isString := value.(string); isString {
 					if _, err := fmt.Fprintln(e.Stdout, s); err != nil {
 						e.Errorf("%v", err)
@@ -76,7 +80,7 @@ func cmdJq(ctx context.Context, e *Env) int {
 			}
 			var encoded []byte
 			var err error
-			if compact {
+			if opts.compact {
 				encoded, err = json.Marshal(value)
 			} else {
 				encoded, err = json.MarshalIndent(value, "", "  ")
@@ -91,10 +95,26 @@ func cmdJq(ctx context.Context, e *Env) int {
 			}
 		}
 	}
+	if opts.exitStatus {
+		if !produced {
+			return 4
+		}
+		if lastValue == nil || lastValue == false {
+			return 1
+		}
+	}
 	return 0
 }
 
-func parseJqArgs(e *Env) (raw, compact, slurp, nullInput bool, query string, operands []string, ok bool) {
+type jqOptions struct {
+	raw        bool
+	compact    bool
+	slurp      bool
+	nullInput  bool
+	exitStatus bool
+}
+
+func parseJqArgs(e *Env) (opts jqOptions, query string, operands []string, ok bool) {
 	args := e.Args[1:]
 	for len(args) > 0 {
 		a := args[0]
@@ -107,37 +127,39 @@ func parseJqArgs(e *Env) (raw, compact, slurp, nullInput bool, query string, ope
 		}
 		switch a {
 		case "--raw-output":
-			raw = true
+			opts.raw = true
 		case "--compact-output":
-			compact = true
+			opts.compact = true
 		case "--slurp":
-			slurp = true
+			opts.slurp = true
 		case "--null-input":
-			nullInput = true
-		case "--sort-keys", "--monochrome-output", "--color-output", "--exit-status":
-			// encoding/json sorts string map keys, color is never emitted, and
-			// exit-status remains accepted without changing result truthiness.
+			opts.nullInput = true
+		case "--exit-status":
+			opts.exitStatus = true
+		case "--sort-keys", "--monochrome-output", "--color-output":
+			// encoding/json sorts string map keys and color is never emitted.
 		default:
 			if strings.HasPrefix(a, "--") {
 				e.Errorf("unsupported option: %s", a)
-				return false, false, false, false, "", nil, false
+				return opts, "", nil, false
 			}
 			for _, flag := range strings.TrimPrefix(a, "-") {
 				switch flag {
 				case 'r':
-					raw = true
+					opts.raw = true
 				case 'c':
-					compact = true
+					opts.compact = true
 				case 's':
-					slurp = true
+					opts.slurp = true
 				case 'n':
-					nullInput = true
-				case 'S', 'M', 'C', 'e':
-					// encoding/json sorts string map keys, color is never emitted,
-					// and -e remains accepted without changing result truthiness.
+					opts.nullInput = true
+				case 'e':
+					opts.exitStatus = true
+				case 'S', 'M', 'C':
+					// encoding/json sorts string map keys and color is never emitted.
 				default:
 					e.Errorf("unsupported option -- %c", flag)
-					return false, false, false, false, "", nil, false
+					return opts, "", nil, false
 				}
 			}
 		}
@@ -145,7 +167,7 @@ func parseJqArgs(e *Env) (raw, compact, slurp, nullInput bool, query string, ope
 	}
 	if len(args) == 0 {
 		e.Errorf("missing filter")
-		return false, false, false, false, "", nil, false
+		return opts, "", nil, false
 	}
-	return raw, compact, slurp, nullInput, args[0], args[1:], true
+	return opts, args[0], args[1:], true
 }
