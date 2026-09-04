@@ -105,3 +105,30 @@ func TestLargeJSONCanBeReducedWithoutReturningPayload(t *testing.T) {
 		t.Fatalf("large JSON reduction mismatch: %+v err=%v", result, err)
 	}
 }
+
+func TestAgentFileInspectionFlags(t *testing.T) {
+	result := run(t, New(), `printf '0123456789abcdef\nsecond\n' >/results.json
+ls -l /results.json
+head -c 16 /results.json
+printf '\n'
+tail -c 7 /results.json`)
+	if result.ExitCode != 0 || result.Stderr != "" {
+		t.Fatalf("file inspection flags failed: %+v", result)
+	}
+	lines := strings.Split(result.Stdout, "\n")
+	if len(lines) < 4 || !strings.Contains(lines[0], " agent agent 24 ") || !strings.HasSuffix(lines[0], " /results.json") {
+		t.Fatalf("ls -l output = %q", result.Stdout)
+	}
+	if lines[1] != "0123456789abcdef" || lines[2] != "second" {
+		t.Fatalf("byte head/tail output = %q", result.Stdout)
+	}
+}
+
+func TestAgentFileInspectionHelp(t *testing.T) {
+	for _, command := range []string{"ls", "head", "tail"} {
+		result := run(t, New(), command+" --help")
+		if result.ExitCode != 0 || result.Stderr != "" || !strings.HasPrefix(result.Stdout, "usage: "+command+" ") {
+			t.Fatalf("%s --help: %+v", command, result)
+		}
+	}
+}
