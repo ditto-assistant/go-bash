@@ -11,7 +11,11 @@ import (
 
 func init() { Register("date", cmdDate) }
 
-var relativeDatePattern = regexp.MustCompile(`^([+-]?\d+)\s*(second|minute|hour|day|week)s?(?:\s+(ago))?$`)
+var (
+	relativeDatePattern = regexp.MustCompile(`^([+-]?)\s*(\d+)\s*(second|minute|hour|day|week)s?(?:\s+(ago))?$`)
+	anchoredDatePattern = regexp.MustCompile(`^(.+?)\s+([+-]?\s*\d+\s*(?:second|minute|hour|day|week)s?(?:\s+ago)?)$`)
+	unixDatePattern     = regexp.MustCompile(`^@\s*([+-]?\d+)$`)
+)
 
 func cmdDate(_ context.Context, e *Env) int {
 	now := e.Now()
@@ -77,39 +81,71 @@ func parseDateInput(base time.Time, input string) (time.Time, error) {
 	case "yesterday":
 		return base.AddDate(0, 0, -1), nil
 	}
-	if seconds, ok := strings.CutPrefix(normalized, "@"); ok {
-		value, err := strconv.ParseInt(seconds, 10, 64)
+	if match := unixDatePattern.FindStringSubmatch(normalized); match != nil {
+		value, err := strconv.ParseInt(match[1], 10, 64)
 		if err != nil {
 			return time.Time{}, err
 		}
 		return time.Unix(value, 0), nil
 	}
-	for _, layout := range []string{time.RFC3339, "2006-01-02 15:04:05", "2006-01-02"} {
-		if parsed, err := time.ParseInLocation(layout, input, base.Location()); err == nil {
-			return parsed, nil
+	if parsed, ok := parseAbsoluteDate(base, input); ok {
+		return parsed, nil
+	}
+	if amount, unit, ok := parseRelativeDate(normalized); ok {
+		return applyRelativeDate(base, amount, unit), nil
+	}
+	if match := anchoredDatePattern.FindStringSubmatch(normalized); match != nil {
+		anchor := strings.TrimSpace(input[:len(match[1])])
+		parsed, ok := parseAbsoluteDate(base, anchor)
+		if !ok {
+			return time.Time{}, fmt.Errorf("unsupported anchor %q", anchor)
+		}
+		amount, unit, ok := parseRelativeDate(match[2])
+		if ok {
+			return applyRelativeDate(parsed, amount, unit), nil
 		}
 	}
-	match := relativeDatePattern.FindStringSubmatch(normalized)
-	if match == nil {
-		return time.Time{}, fmt.Errorf("unsupported format")
+	return time.Time{}, fmt.Errorf("unsupported format")
+}
+
+func parseAbsoluteDate(base time.Time, input string) (time.Time, bool) {
+	for _, layout := range []string{time.RFC3339, "2006-01-02 15:04:05", "2006-01-02"} {
+		if parsed, err := time.ParseInLocation(layout, input, base.Location()); err == nil {
+			return parsed, true
+		}
 	}
-	amount, _ := strconv.Atoi(match[1])
-	if match[3] == "ago" {
+	return time.Time{}, false
+}
+
+func parseRelativeDate(input string) (int, string, bool) {
+	match := relativeDatePattern.FindStringSubmatch(strings.ToLower(strings.TrimSpace(input)))
+	if match == nil {
+		return 0, "", false
+	}
+	amount, err := strconv.Atoi(match[2])
+	if err != nil {
+		return 0, "", false
+	}
+	if match[1] == "-" || match[4] == "ago" {
 		amount = -amount
 	}
-	switch match[2] {
+	return amount, match[3], true
+}
+
+func applyRelativeDate(base time.Time, amount int, unit string) time.Time {
+	switch unit {
 	case "second":
-		return base.Add(time.Duration(amount) * time.Second), nil
+		return base.Add(time.Duration(amount) * time.Second)
 	case "minute":
-		return base.Add(time.Duration(amount) * time.Minute), nil
+		return base.Add(time.Duration(amount) * time.Minute)
 	case "hour":
-		return base.Add(time.Duration(amount) * time.Hour), nil
+		return base.Add(time.Duration(amount) * time.Hour)
 	case "day":
-		return base.AddDate(0, 0, amount), nil
+		return base.AddDate(0, 0, amount)
 	case "week":
-		return base.AddDate(0, 0, 7*amount), nil
+		return base.AddDate(0, 0, 7*amount)
 	default:
-		return time.Time{}, fmt.Errorf("unsupported unit")
+		return base
 	}
 }
 

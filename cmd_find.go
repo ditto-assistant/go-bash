@@ -22,6 +22,10 @@ type findOptions struct {
 }
 
 func cmdFind(ctx context.Context, e *Env) int {
+	if len(e.Args) == 2 && e.Args[1] == "--help" {
+		_, _ = fmt.Fprintln(e.Stdout, "usage: find [path] [-maxdepth n] [-type f|d] [-name pattern|-iname pattern] [-print]")
+		return 0
+	}
 	opts, ok := parseFindOptions(e)
 	if !ok {
 		return 1
@@ -85,8 +89,18 @@ func parseFindOptions(e *Env) (findOptions, bool) {
 		args = args[1:]
 	}
 	for i := 0; i < len(args); i++ {
-		if i+1 >= len(args) {
-			e.Errorf("predicate %s requires an argument", args[i])
+		switch args[i] {
+		case "-print":
+			// Printing matching paths is already the default action. Accept the
+			// explicit GNU/BSD spelling without consuming another argument.
+			continue
+		case "-name", "-iname", "-type", "-maxdepth":
+			if i+1 >= len(args) {
+				e.Errorf("predicate %s requires an argument", args[i])
+				return opts, false
+			}
+		default:
+			e.Errorf("unsupported predicate: %s", args[i])
 			return opts, false
 		}
 		value := args[i+1]
@@ -108,9 +122,6 @@ func parseFindOptions(e *Env) (findOptions, bool) {
 				return opts, false
 			}
 			opts.maxDepth = n
-		default:
-			e.Errorf("unsupported predicate: %s", args[i])
-			return opts, false
 		}
 		i++
 	}

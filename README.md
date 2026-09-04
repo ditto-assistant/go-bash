@@ -56,6 +56,21 @@ The initial agent/data-analysis toolset is implemented end-to-end:
 `basename`, `dirname`, `jq`, `base64`, `tee`, `date`, `env`, `printenv`,
 `whoami`, `seq`, `xargs`, and `mktemp`.
 
+### Compatibility highlights
+
+The data utilities intentionally implement a bounded, agent-oriented subset of
+their GNU/BSD counterparts. The most common result-inspection forms are:
+
+| Command | Supported forms |
+|---------|-----------------|
+| `find` | one path plus `-maxdepth N`, `-type f\|d`, `-name`, `-iname`, and optional `-print`, in any order; predicates are implicitly ANDed |
+| `jq` | `-r`, `-c`, `-s`, `-n`, `-S` (including combined short flags), plus their common long names; output is deterministic and key-sorted |
+| `date` | `-u`, GNU-style `+FORMAT`, `-d` with `now`/`today`/`tomorrow`/`yesterday`, RFC3339 or common date/time anchors, `@TIMESTAMP`, and signed seconds/minutes/hours/days/weeks arithmetic |
+
+Use these commands' `--help` output for their concise runtime inventory. Unsupported
+predicates, options, and formats fail explicitly rather than falling through to
+a host executable.
+
 `Shell.Run` also bounds script bytes, captured output, and external command
 invocations. Runs have a five-second default deadline; hosts can tighten it
 with `WithTimeout` or an earlier `context.Context` deadline. Results identify
