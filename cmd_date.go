@@ -47,7 +47,14 @@ func cmdDate(_ context.Context, e *Env) int {
 		}
 	}
 	if dateInput != "" {
-		parsed, err := parseDateInput(now, dateInput)
+		parseBase := now
+		if utc {
+			// GNU date interprets timezone-free --date operands in UTC when -u is
+			// active. Parsing in the host clock's location and converting later
+			// shifts midnight (for example, CET midnight becomes 23:00 UTC).
+			parseBase = now.UTC()
+		}
+		parsed, err := parseDateInput(parseBase, dateInput)
 		if err != nil {
 			e.Errorf("invalid date %q: %v", dateInput, err)
 			return 1

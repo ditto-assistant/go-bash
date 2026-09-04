@@ -25,6 +25,12 @@ Everything else an agent would type (`cat ls mkdir mv cp rm ln touch tree head
 tail wc sort uniq cut tr grep sed awk find jq base64 ...`) is an **external
 command** and IS our job.
 
+Commands that invoke another argv vector, such as `xargs`, must use
+`Env.RunCommand`. That callback safely re-enters the sandbox interpreter for one
+quoted command, so it resolves both shell builtins and registered pure-Go
+commands. It never falls through to host executables and must not be replaced
+with `os/exec`.
+
 ## How to add a command
 
 One file per command: `cmd_<name>.go`, plus `cmd_<name>_test.go`. Self-register

@@ -35,15 +35,18 @@ Go builtin; there is **no fall-through to host binaries** — an unknown command
 is a `command not found` (exit 127). The `Open`/`Stat`/`ReadDir` handlers route
 redirects, globbing and path tests to the same in-memory filesystem.
 
-This is a Bash-compatible interpreter, not a Linux container. `$0` reports
-`bash`, while `gobash info` identifies the implementation as
-`go-bash/mvdan-sh`, the virtual working directory, and the sandbox boundary.
+This is a Bash-compatible interpreter, not GNU Bash or a Linux container. `$0`
+reports `bash`, and `$BASH_VERSION` reports the explicitly suffixed compatibility
+identity `5.3.15(1)-go-bash`; `$BASH_COMPAT` reports the `5.3` language target.
+`gobash info` identifies the go-bash and mvdan/sh versions, the virtual working
+directory, and the sandbox boundary.
 `gobash commands` is the authoritative external-command inventory, and
 `command -v <name>` accurately recognizes each listed command plus interpreter
-builtins. `bash --help` provides the same boundary summary. Python, Node.js,
-zsh, package installation, host executables, host files, and network access are
-intentionally unavailable; callers can perform richer computation in their
-outer JavaScript runtime.
+builtins. `bash --help` provides the same boundary summary. Nested `bash -c`
+invocations are intentionally unavailable because the current interpreter is
+already the sandbox boundary. Python, Node.js, zsh, package installation, host
+executables, host files, and network access are intentionally unavailable;
+callers can perform richer computation in their outer JavaScript runtime.
 
 See [`AGENTS.md`](./AGENTS.md) for the contributor contract (how to add a
 command, the test/TDD model, and the boundary rules).
@@ -64,8 +67,9 @@ their GNU/BSD counterparts. The most common result-inspection forms are:
 | Command | Supported forms |
 |---------|-----------------|
 | `find` | one path plus `-maxdepth N`, `-type f\|d`, `-name`, `-iname`, and optional `-print`, in any order; predicates are implicitly ANDed |
-| `jq` | `-r`, `-c`, `-s`, `-n`, `-S` (including combined short flags), plus their common long names; output is deterministic and key-sorted |
-| `date` | `-u`, GNU-style `+FORMAT`, `-d` with `now`/`today`/`tomorrow`/`yesterday`, RFC3339 or common date/time anchors, `@TIMESTAMP`, and signed seconds/minutes/hours/days/weeks arithmetic |
+| `jq` | `-r`, `-c`, `-s`, `-n`, `-S`, `-e` (including combined short flags), plus their common long names; `-e` follows jq's last-result truthiness exit codes |
+| `date` | `-u`, GNU-style `+FORMAT`, `-d` with `now`/`today`/`tomorrow`/`yesterday`, RFC3339 or common date/time anchors, `@TIMESTAMP`, and signed seconds/minutes/hours/days/weeks arithmetic; `-u` also parses timezone-free anchors as UTC |
+| `xargs` | `-0`, `-r`, `-n`, and `-I`; invoked argv resolves through the same shell-aware dispatcher, so both shell builtins such as `printf` and registered external commands work |
 
 Use these commands' `--help` output for their concise runtime inventory. Unsupported
 predicates, options, and formats fail explicitly rather than falling through to
@@ -76,6 +80,12 @@ invocations. Runs have a five-second default deadline; hosts can tighten it
 with `WithTimeout` or an earlier `context.Context` deadline. Results identify
 stdout and stderr truncation separately as well as through the compatibility
 `Truncated` field.
+
+For structured host integration, `Shell.RunInput` accepts an `io.Reader` for
+stdin. A host can JSON-encode a value into stdin, run a jq pipeline, and decode
+the single JSON value written to stdout. This keeps Bash focused on VFS and
+pipeline work while an outer JavaScript layer owns rich computation and tool
+calls.
 
 ## License
 

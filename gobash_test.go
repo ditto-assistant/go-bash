@@ -40,6 +40,17 @@ func TestPipeline(t *testing.T) {
 	}
 }
 
+func TestRunInputFeedsStructuredStdin(t *testing.T) {
+	res, err := New().RunInput(
+		context.Background(),
+		`jq -c '{ids: [.items[].id]}'`,
+		strings.NewReader(`{"items":[{"id":"a"},{"id":"b"}]}`),
+	)
+	if err != nil || res.ExitCode != 0 || res.Stdout != `{"ids":["a","b"]}`+"\n" || res.Stderr != "" {
+		t.Fatalf("structured stdin: %+v err=%v", res, err)
+	}
+}
+
 func TestRedirectAndRead(t *testing.T) {
 	sh := New()
 	run(t, sh, `mkdir -p /work && echo hi > /work/a.txt`)

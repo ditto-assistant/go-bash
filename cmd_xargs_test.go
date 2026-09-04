@@ -19,3 +19,10 @@ func TestXargsBatchesAndInvokesRegisteredCommands(t *testing.T) {
 		}
 	}
 }
+
+func TestXargsInvokesShellBuiltins(t *testing.T) {
+	result := run(t, New(), `printf 'a\nb\n' | xargs printf '[%s]'`)
+	if result.ExitCode != 0 || result.Stdout != "[a][b]" || result.Stderr != "" {
+		t.Fatalf("xargs shell builtin: %+v", result)
+	}
+}

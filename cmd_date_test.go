@@ -25,3 +25,12 @@ func TestDateFormattingAndMath(t *testing.T) {
 		}
 	}
 }
+
+func TestDateUTCAnchoredArithmeticUsesUTCForNaiveAnchor(t *testing.T) {
+	centralEuropeanTime := time.FixedZone("CET", 60*60)
+	fixed := time.Date(2026, time.September, 4, 12, 34, 56, 0, centralEuropeanTime)
+	result := run(t, New(WithNow(func() time.Time { return fixed })), `date -u -d '2026-01-01 + 1 day'`)
+	if result.ExitCode != 0 || result.Stdout != "Fri Jan  2 00:00:00 UTC 2026\n" || result.Stderr != "" {
+		t.Fatalf("UTC anchored arithmetic: %+v", result)
+	}
+}

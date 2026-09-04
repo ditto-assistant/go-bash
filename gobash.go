@@ -105,7 +105,10 @@ func New(opts ...Option) *Shell {
 		fs:  afero.NewMemMapFs(),
 		cwd: "/tmp",
 		env: []string{
+			"BASH_COMPAT=" + BashCompatibility,
+			"BASH_VERSION=" + BashVersion,
 			"GOBASH_RUNTIME=mvdan-sh",
+			"GOBASH_VERSION=" + Version,
 			"HOME=/tmp",
 			"LOGNAME=agent",
 			"PATH=/gobash/bin",
@@ -145,6 +148,9 @@ type Result struct {
 	StderrTruncated bool
 	Shell           string
 	Runtime         string
+	RuntimeVersion  string
+	GoBashVersion   string
+	BashVersion     string
 	Cwd             string
 	TimeoutMS       int64
 }
@@ -153,14 +159,25 @@ type Result struct {
 // The returned error is non-nil only for interpreter/parse failures, not for a
 // non-zero exit status (which is reported via Result.ExitCode).
 func (s *Shell) Run(ctx context.Context, script string) (Result, error) {
+	return s.RunInput(ctx, script, strings.NewReader(""))
+}
+
+// RunInput executes script with the supplied stdin, capturing stdout and
+// stderr into the returned Result. It is useful for hosts that want to pass a
+// structured value into a shell pipeline without first writing a VFS file.
+func (s *Shell) RunInput(ctx context.Context, script string, stdin io.Reader) (Result, error) {
 	stdout := newCaptureBuffer(s.maxOutput)
 	stderr := newCaptureBuffer(s.maxOutput)
-	code, err := s.RunIO(ctx, script, strings.NewReader(""), stdout, stderr)
+	if stdin == nil {
+		stdin = strings.NewReader("")
+	}
+	code, err := s.RunIO(ctx, script, stdin, stdout, stderr)
 	return Result{
 		Stdout: stdout.String(), Stderr: stderr.String(), ExitCode: code,
 		Truncated:       stdout.truncated || stderr.truncated,
 		StdoutTruncated: stdout.truncated, StderrTruncated: stderr.truncated,
-		Shell: "bash", Runtime: "go-bash/mvdan-sh", Cwd: s.cwd,
+		Shell: "bash", Runtime: Runtime, RuntimeVersion: RuntimeVersion,
+		GoBashVersion: Version, BashVersion: BashVersion, Cwd: s.cwd,
 		TimeoutMS: s.timeout.Milliseconds(),
 	}, err
 }
