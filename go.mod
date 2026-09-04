@@ -1,6 +1,6 @@
 module github.com/ditto-assistant/go-bash
 
-go 1.26.4
+go 1.26
 
 require (
 	github.com/benhoyt/goawk v1.31.0
