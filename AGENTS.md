@@ -90,7 +90,7 @@ operands, missing file, the documented flags, and an empty-input edge case.
 2. **Text**: `head tail wc sort uniq cut tr nl rev tac`
 3. **Search/transform**: `grep sed find basename dirname`
 4. **Heavy** (mini-interpreters, own sub-packages): `awk jq`
-5. **Data/encoding**: `base64 cksum xxd`
+5. **Data/encoding**: `base64 xxd od hexdump gzip gunzip tar zip unzip`
 
 Items 1–3 are the priority. `awk`/`jq` are large and may be staged behind a
 build tag or a sub-package; they should not block the rest.
