@@ -21,17 +21,18 @@ func init() {
 type zipOptions struct {
 	recursive bool
 	quiet     bool
+	junkPaths bool
 	store     bool
 	level     int
 	archive   string
 	operands  []string
 }
 
-// cmdZip creates VFS-local ZIP archives. It supports -r, -q, -0, stdin/stdout
-// archives through "-", and the ordinary `zip archive files...` form.
+// cmdZip creates VFS-local ZIP archives. It supports -r, -q, -j, -0,
+// stdout archives through "-", and the ordinary `zip archive files...` form.
 func cmdZip(ctx context.Context, e *Env) int {
 	if len(e.Args) == 2 && e.Args[1] == "--help" {
-		_, _ = fmt.Fprintln(e.Stdout, "usage: zip [-qr0] ARCHIVE FILE...")
+		_, _ = fmt.Fprintln(e.Stdout, "usage: zip [-qrj0] ARCHIVE FILE...")
 		return 0
 	}
 	opts, ok := parseZipArgs(e)
@@ -42,6 +43,13 @@ func cmdZip(ctx context.Context, e *Env) int {
 	if err != nil {
 		e.Errorf("%v", err)
 		return 1
+	}
+	if opts.junkPaths {
+		entries, err = junkArchivePaths(entries)
+		if err != nil {
+			e.Errorf("%v", err)
+			return 1
+		}
 	}
 	output := e.Stdout
 	var archiveFile io.Closer
@@ -128,6 +136,8 @@ func parseZipArgs(e *Env) (zipOptions, bool) {
 					opts.recursive = true
 				case 'q':
 					opts.quiet = true
+				case 'j':
+					opts.junkPaths = true
 				case '0':
 					opts.store = true
 				case '1', '2', '3', '4', '5', '6', '7', '8', '9':
@@ -150,6 +160,27 @@ func parseZipArgs(e *Env) (zipOptions, bool) {
 		return zipOptions{}, false
 	}
 	return opts, true
+}
+
+// junkArchivePaths implements zip's -j behavior. Directories are
+// omitted and regular files are stored by basename. Reject collisions before
+// creating the archive so flattening cannot silently produce ambiguous members.
+func junkArchivePaths(entries []virtualArchiveEntry) ([]virtualArchiveEntry, error) {
+	flattened := make([]virtualArchiveEntry, 0, len(entries))
+	seen := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		if entry.info.IsDir() {
+			continue
+		}
+		name := path.Base(entry.name)
+		if previous, exists := seen[name]; exists {
+			return nil, fmt.Errorf("cannot add both %q and %q as %q with -j", previous, entry.name, name)
+		}
+		seen[name] = entry.name
+		entry.name = name
+		flattened = append(flattened, entry)
+	}
+	return flattened, nil
 }
 
 type unzipOptions struct {

@@ -65,6 +65,56 @@ printf '|content='; cat out/src/sub/b.txt
 	}
 }
 
+func TestZipJunkPathsStoresBasenames(t *testing.T) {
+	result, err := New().Run(context.Background(), `
+mkdir -p /tmp/src/nested /tmp/src/other /tmp/out
+printf one >/tmp/src/nested/one.txt
+printf two >'/tmp/src/other/two words.txt'
+zip -q -j /tmp/archive.zip /tmp/src/nested/one.txt '/tmp/src/other/two words.txt'
+unzip -Z1 /tmp/archive.zip
+unzip -q /tmp/archive.zip -d /tmp/out
+printf 'content='; cat '/tmp/out/two words.txt'
+`)
+	if err != nil || result.ExitCode != 0 || result.Stderr != "" {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	if result.Stdout != "one.txt\ntwo words.txt\ncontent=two" {
+		t.Fatalf("stdout=%q", result.Stdout)
+	}
+}
+
+func TestZipRecursiveJunkPathsOmitsDirectories(t *testing.T) {
+	result, err := New().Run(context.Background(), `
+mkdir -p /tmp/src/nested
+printf one >/tmp/src/nested/one.txt
+cd /tmp
+zip -qrj archive.zip src
+unzip -Z1 archive.zip
+`)
+	if err != nil || result.ExitCode != 0 || result.Stderr != "" || result.Stdout != "one.txt\n" {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+}
+
+func TestZipJunkPathsRejectsDuplicateBasenames(t *testing.T) {
+	shell := New()
+	result, err := shell.Run(context.Background(), `
+mkdir -p /tmp/a /tmp/b
+printf one >/tmp/a/same.txt
+printf two >/tmp/b/same.txt
+zip -q -j /tmp/archive.zip /tmp/a/same.txt /tmp/b/same.txt
+`)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.ExitCode == 0 || !strings.Contains(result.Stderr, "cannot add both") {
+		t.Fatalf("expected duplicate basename rejection, got %+v", result)
+	}
+	if exists, _ := afero.Exists(shell.FS(), "/tmp/archive.zip"); exists {
+		t.Fatal("archive should not be created after a duplicate basename error")
+	}
+}
+
 func TestUnzipRejectsInvalidArchive(t *testing.T) {
 	result, err := New().Run(context.Background(), `printf nope >/tmp/a.zip; unzip /tmp/a.zip`)
 	if err != nil {
