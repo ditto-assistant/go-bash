@@ -105,10 +105,10 @@ func cmdXxd(ctx context.Context, e *Env) int {
 				groups.WriteByte(' ')
 			}
 			if i < len(chunk) {
-				groups.WriteString(fmt.Sprintf("%02x", chunk[i]))
+				_, _ = fmt.Fprintf(&groups, "%02x", chunk[i])
 			}
 			if i+1 < len(chunk) {
-				groups.WriteString(fmt.Sprintf("%02x", chunk[i+1]))
+				_, _ = fmt.Fprintf(&groups, "%02x", chunk[i+1])
 			}
 		}
 		hexWidth := columns*2 + (columns-1)/2

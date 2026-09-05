@@ -43,7 +43,7 @@ func cmdZip(ctx context.Context, e *Env) int {
 		e.Errorf("%v", err)
 		return 1
 	}
-	var output io.Writer = e.Stdout
+	output := e.Stdout
 	var archiveFile io.Closer
 	if opts.archive != "-" {
 		file, err := e.FS.Create(e.Resolve(opts.archive))
@@ -329,7 +329,7 @@ func aferoReadFile(e *Env, name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	return io.ReadAll(file)
 }
 

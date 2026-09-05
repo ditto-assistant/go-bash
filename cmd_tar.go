@@ -151,7 +151,7 @@ func createTar(ctx context.Context, e *Env, opts tarOptions) error {
 	if err != nil {
 		return err
 	}
-	var output io.Writer = e.Stdout
+	output := e.Stdout
 	var archiveFile io.Closer
 	if opts.archive != "-" {
 		file, err := e.FS.Create(e.Resolve(opts.archive))
@@ -161,7 +161,7 @@ func createTar(ctx context.Context, e *Env, opts tarOptions) error {
 		output, archiveFile = file, file
 	}
 	if archiveFile != nil {
-		defer archiveFile.Close()
+		defer func() { _ = archiveFile.Close() }()
 	}
 	var gzipWriter *gzip.Writer
 	if opts.gzip {
@@ -209,7 +209,7 @@ func createTar(ctx context.Context, e *Env, opts tarOptions) error {
 }
 
 func readTar(ctx context.Context, e *Env, opts tarOptions) error {
-	var input io.Reader = e.Stdin
+	input := e.Stdin
 	var archiveFile io.Closer
 	if opts.archive != "-" {
 		file, err := e.FS.Open(e.Resolve(opts.archive))
@@ -219,7 +219,7 @@ func readTar(ctx context.Context, e *Env, opts tarOptions) error {
 		input, archiveFile = file, file
 	}
 	if archiveFile != nil {
-		defer archiveFile.Close()
+		defer func() { _ = archiveFile.Close() }()
 	}
 	var gzipReader *gzip.Reader
 	if opts.gzip {
@@ -228,7 +228,7 @@ func readTar(ctx context.Context, e *Env, opts tarOptions) error {
 		if err != nil {
 			return err
 		}
-		defer gzipReader.Close()
+		defer func() { _ = gzipReader.Close() }()
 		input = gzipReader
 	}
 	tr := tar.NewReader(input)
@@ -260,7 +260,7 @@ func readTar(ctx context.Context, e *Env, opts tarOptions) error {
 		switch header.Typeflag {
 		case tar.TypeDir:
 			err = e.FS.MkdirAll(target, archiveMode(header.FileInfo().Mode().Perm(), true))
-		case tar.TypeReg, tar.TypeRegA:
+		case tar.TypeReg:
 			if err = e.FS.MkdirAll(path.Dir(target), 0o755); err == nil {
 				var file io.WriteCloser
 				file, err = createArchiveFile(e, target, archiveMode(header.FileInfo().Mode().Perm(), false))
