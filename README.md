@@ -78,7 +78,7 @@ their GNU/BSD counterparts. The most common result-inspection forms are:
 | `find` | one path plus `-maxdepth N`, `-type f\|d`, `-name`, `-iname`, `-print`, and `-print0`, in any order; predicates are implicitly ANDed |
 | `jq` | `-R`, `-r`, `-c`, `-s`, `-n`, `-S`, `-e`, `--arg`, and `--argjson`; `-e` follows jq's last-result truthiness exit codes |
 | `date` | `-u`, GNU-style `+FORMAT`, `-d` with `now`/`today`/`tomorrow`/`yesterday`, RFC3339, `YYYY-MM-DD`, `YYYY-MM-DD HH:MM:SS` with an optional `UTC` or numeric offset, `@TIMESTAMP`, and one signed seconds/minutes/hours/days/weeks offset; `-u` also parses timezone-free anchors as UTC |
-| `grep` / `rg` | grep BRE plus `-E`/`-F`, `-w`, `-A`/`-B`/`-C`, recursive search, line/count/file modes; rg adds implicit recursion, `--files`, and globstar-aware `-g`/`--glob` includes/excludes |
+| `grep` / `rg` | grep BRE plus `-E`/`-F`, `-w`, `-A`/`-B`/`-C`, recursive search, line/count/file modes; `rg` reads stdin when no path is supplied (use `rg PATTERN .` for explicit VFS recursion) and adds `--files` plus globstar-aware `-g`/`--glob` includes/excludes |
 | `ls` | one-entry-per-line output plus combinable `-a`, `-1`, `-d`, and `-l`; long output uses stable virtual owner/group names and UTC timestamps |
 | `head` / `tail` | line counts via `-n N`, `-n +N`, `-nN`, and `--lines=N`; byte counts via `-c N`, `-c +N`, `-cN`, and `--bytes=N` |
 | `gzip` / `gunzip` | gzip streams and files with `-c`, `-d`, `-k`, `-t`, `-f`, and compression levels `-1` through `-9`; ordinary file mode follows `.gz` naming and removal conventions |
