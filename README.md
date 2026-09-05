@@ -83,7 +83,7 @@ their GNU/BSD counterparts. The most common result-inspection forms are:
 | `head` / `tail` | line counts via `-n N`, `-n +N`, `-nN`, and `--lines=N`; byte counts via `-c N`, `-c +N`, `-cN`, and `--bytes=N` |
 | `gzip` / `gunzip` | gzip streams and files with `-c`, `-d`, `-k`, `-t`, `-f`, and compression levels `-1` through `-9`; ordinary file mode follows `.gz` naming and removal conventions |
 | `tar` | create, extract, and list via `-c`/`-x`/`-t`, `-f`, `-z`, `-C`, `-v`, combined flags such as `-czf`, and `-` for stdin/stdout; extraction is confined to the VFS destination and supports regular files/directories |
-| `zip` / `unzip` | recursive or stored ZIP creation with `-r`, `-q`, `-0`, and compression levels `-1` through `-9`; extraction/listing/streaming with `-d`, `-l`, `-Z1`, `-p`, `-q`, `-o`, and `-n`; member selection supports exact paths and globs |
+| `zip` / `unzip` | recursive, basename-only, or stored ZIP creation with `-r`, `-j`, `-q`, `-0`, and compression levels `-1` through `-9`; extraction/listing/streaming with `-d`, `-l`, `-Z1`, `-p`, `-q`, `-o`, and `-n`; member selection supports exact paths and globs |
 | `xxd` / `od` / `hexdump` | canonical and plain `xxd`, including `-r -p`, byte limits/offsets/columns; `od -An -tx1` with `-N`/`-j`; canonical `hexdump -C` with `-n`/`-s` |
 | `xargs` | `-0`, `-r`, `-n`, and line-preserving `-I`; invoked argv resolves through the same shell-aware dispatcher, so both shell builtins such as `printf` and registered external commands work |
 | `printf` | common Bash formats and escapes including mixed `%q`, `%b`, numeric width/precision, `--`, and shell-local `-v`; explicit `command printf` and `builtin printf` use the same formatter |
