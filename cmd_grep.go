@@ -1,6 +1,7 @@
 package gobash
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -60,7 +61,20 @@ func cmdGrep(ctx context.Context, e *Env) int {
 		opts.operands = opts.operands[1:]
 	}
 	if e.Args[0] == "rg" && len(opts.operands) == 0 {
-		opts.operands = []string{"."}
+		// The interpreter is non-interactive, but preserves ripgrep's useful
+		// terminal behavior by falling back to recursive VFS search when the
+		// run-level stdin is empty. Peek one byte so an actual pipeline wins
+		// even when the working directory already contains files.
+		var first [1]byte
+		n, readErr := e.Stdin.Read(first[:])
+		if n > 0 {
+			e.Stdin = io.MultiReader(bytes.NewReader(first[:n]), e.Stdin)
+		} else if errors.Is(readErr, io.EOF) {
+			opts.operands = []string{"."}
+		} else if readErr != nil {
+			e.Errorf("read stdin: %v", readErr)
+			return 1
+		}
 	}
 	match, err := compileGrepMatcher(opts)
 	if err != nil {

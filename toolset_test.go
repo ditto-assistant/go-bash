@@ -85,6 +85,7 @@ func TestDataProcessingToolset(t *testing.T) {
 	}{
 		{name: "grep pipeline", script: `printf 'Alpha\nbeta\nALPINE\n' | grep -in '^al'`, want: "1:Alpha\n3:ALPINE\n"},
 		{name: "ripgrep recursive", script: `mkdir -p /d/sub; printf 'no\n' >/d/a; printf 'needle\n' >/d/sub/b; rg -n needle /d`, want: "/d/sub/b:1:needle\n"},
+		{name: "ripgrep pipeline wins over populated cwd", script: `printf file-match >/tmp/file; printf pipe-match | rg 'pipe|file'`, want: "pipe-match\n"},
 		{name: "head", script: `printf 'a\nb\nc\n' | head -n 2`, want: "a\nb\n"},
 		{name: "tail", script: `printf 'a\nb\nc\n' | tail -2`, want: "b\nc\n"},
 		{name: "sort uniq", script: `printf 'b\na\na\n' | sort | uniq -c`, want: "      2 a\n      1 b\n"},
